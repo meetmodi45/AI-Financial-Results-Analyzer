@@ -20,5 +20,5 @@ pandas
 numpy
 xgboost
 langchain
-langchain-google-genai
+langchain-groq
 langchain-core

@@ -14,7 +14,7 @@ def generate_synthetic_data(num_samples=1500):
     yoy_growth = np.random.normal(loc=5.0, scale=20.0, size=num_samples)
     net_margin = np.random.normal(loc=12.0, scale=10.0, size=num_samples)
     
-    # Calculate a proxy "Earnings Strength" (simulating a feature engineered from NLP or complex metrics)
+    # Calculate a proxy "Earnings Strength" based purely on math
     earnings_strength = (qoq_growth * 0.4) + (yoy_growth * 0.4) + (net_margin * 0.2) + np.random.normal(0, 5, num_samples)
     
     df = pd.DataFrame({
@@ -35,7 +35,7 @@ def generate_synthetic_data(num_samples=1500):
     return df
 
 def train_and_save_model():
-    print("Generating synthetic financial dataset...")
+    print("Generating synthetic financial dataset (Quantitative Only)...")
     df = generate_synthetic_data(2000)
     print(df['verdict'].value_counts())
     

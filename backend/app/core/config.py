@@ -13,7 +13,7 @@ class Settings(BaseSettings):
         return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}/{self.POSTGRES_DB}"
     
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    GOOGLE_API_KEY: str | None = os.getenv("GOOGLE_API_KEY")
+    GROQ_API_KEY: str | None = os.getenv("GROQ_API_KEY")
     
     class Config:
         env_file = "../.env"

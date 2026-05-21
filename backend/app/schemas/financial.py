@@ -30,11 +30,13 @@ class FinancialRawSchema(BaseModel):
     profit_before_exceptional_q_prev: float | None = None
     profit_before_tax_q_prev: float | None = None
     pat_q_prev: float | None = None
+    basic_eps_q_prev: float | None = None
 
     # Quarter Year-Ago (Index 2)
     revenue_q_year_ago: float | None = None
     total_income_q_year_ago: float | None = None
     pat_q_year_ago: float | None = None
+    basic_eps_q_year_ago: float | None = None
 
     # Full Year Current (Index 3)
     revenue_fy_current: float | None = None

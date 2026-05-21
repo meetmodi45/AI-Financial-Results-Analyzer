@@ -6,7 +6,7 @@ from app.core.db import SessionLocal
 from app.models.document import Document, ProcessingStatus
 from app.schemas.financial import FinancialRawSchema
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 
 logger = logging.getLogger(__name__)
@@ -100,9 +100,11 @@ def process_tables(document_id: str):
         if not compiled_text.strip():
             raise ValueError("No financial data could be extracted; targeted context is empty.")
 
+
+
         # 2. Invoke LLM Engine
-        logger.info("[Agent5] Invoking Gemini 1.5 Pro with structured output...")
-        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.0)
+        logger.info("[Agent5] Invoking Groq with structured output...")
+        llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.0)
         structured_llm = llm.with_structured_output(FinancialRawSchema)
 
         system_prompt = (
@@ -119,7 +121,15 @@ def process_tables(document_id: str):
         ])
 
         chain = prompt | structured_llm
-        result = chain.invoke({"text": compiled_text})
+
+        try:
+            result = chain.invoke({"text": compiled_text})
+        except Exception as e:
+            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                logger.error("[Agent5] Gemini API Rate Limit Hit (429). Failing gracefully.")
+                raise ValueError("Gemini API Limit Exhausted. Try again after some time")
+            else:
+                raise e
 
         # 3. Serialize and Save
         financial_data = result.model_dump()

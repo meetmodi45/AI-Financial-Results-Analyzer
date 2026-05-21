@@ -357,17 +357,13 @@ function App() {
                         {/* Inline Agent 5 Loader */}
                         {step.id === 'TABLE_EXTRACTION' && state === 'running' && (
                           <div className="ml-9 p-3 border-2 border-brutalist-dark bg-stone-50 font-mono text-[10px] sm:text-xs max-w-sm">
-                            <div className="flex justify-between mb-2">
-                              <span className="font-bold">INFERENCE ACTIVE</span>
-                              <span>{loadingProgress}%</span>
+                            <div className="flex justify-end mb-1">
+                              <span className="font-bold">{loadingProgress}%</span>
                             </div>
-                            <div className="w-full h-3 border-2 border-brutalist-dark bg-white relative overflow-hidden mb-2">
+                            <div className="w-full h-3 border-2 border-brutalist-dark bg-white relative overflow-hidden">
                               <div className="absolute top-0 left-0 h-full bg-brutalist-orange transition-all duration-300" style={{ width: `${loadingProgress}%` }}>
                                 <div className="w-full h-full opacity-20 bg-[repeating-linear-gradient(45deg,transparent,transparent_5px,#000_5px,#000_10px)]"></div>
                               </div>
-                            </div>
-                            <div className="text-brutalist-green font-bold truncate">
-                              {'>'} {activePhaseText || "INITIALIZING..."}
                             </div>
                           </div>
                         )}
@@ -395,7 +391,7 @@ function App() {
                     { label: 'Net Margin', key: 'net_margin', icon: <DollarSign size={14} /> },
                     { label: 'PAT QoQ', key: 'pat_qoq', icon: <Activity size={14} /> },
                     { label: 'PAT YoY', key: 'pat_yoy', icon: <Activity size={14} /> },
-                    { label: 'EBITDA Margin', key: 'ebitda_margin', icon: <DollarSign size={14} /> },
+                    { label: 'EPS YoY', key: 'eps_yoy', icon: <TrendingUp size={14} /> },
                   ].map(({ label, key, icon }) => {
                     const val = statusData.analysis_results[key];
                     const isNull = val === null || val === undefined;
