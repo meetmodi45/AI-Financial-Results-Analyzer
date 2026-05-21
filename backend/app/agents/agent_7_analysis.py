@@ -80,6 +80,107 @@ def process_financial_analysis(document_id: str):
             'ebitda_q_cr':         ebitda_q,
             'basic_eps':           fd.get('basic_eps_q'),
         }
+        
+        # ── Balance Sheet Metrics ─────────────────────────────────────────────
+        # Current Year
+        nc_borrow = fd.get('non_current_borrowings') or 0
+        c_borrow  = fd.get('current_borrowings') or 0
+        total_borrowings = nc_borrow + c_borrow
+
+        cash_eq   = fd.get('cash_equivalents') or 0
+        bank_bal  = fd.get('bank_balances') or 0
+        cash_and_bank = cash_eq + bank_bal
+
+        net_debt = total_borrowings - cash_and_bank
+
+        tc_assets      = fd.get('total_current_assets')
+        tc_liabilities = fd.get('total_current_liabilities')
+        current_ratio  = None
+        if tc_assets is not None and tc_liabilities is not None and tc_liabilities != 0:
+            current_ratio = round(tc_assets / tc_liabilities, 2)
+
+        # Previous Year
+        nc_borrow_prev = fd.get('non_current_borrowings_prev') or 0
+        c_borrow_prev  = fd.get('current_borrowings_prev') or 0
+        total_borrowings_prev = nc_borrow_prev + c_borrow_prev
+
+        cash_eq_prev   = fd.get('cash_equivalents_prev') or 0
+        bank_bal_prev  = fd.get('bank_balances_prev') or 0
+        cash_and_bank_prev = cash_eq_prev + bank_bal_prev
+
+        net_debt_prev = total_borrowings_prev - cash_and_bank_prev
+
+        tc_assets_prev      = fd.get('total_current_assets_prev')
+        tc_liabilities_prev = fd.get('total_current_liabilities_prev')
+        current_ratio_prev  = None
+        if tc_assets_prev is not None and tc_liabilities_prev is not None and tc_liabilities_prev != 0:
+            current_ratio_prev = round(tc_assets_prev / tc_liabilities_prev, 2)
+
+        if fd.get('non_current_borrowings') is not None or fd.get('current_borrowings') is not None:
+            results['total_borrowings_cr'] = total_borrowings
+            results['net_debt_cr'] = net_debt
+            if fd.get('non_current_borrowings_prev') is not None or fd.get('current_borrowings_prev') is not None:
+                results['total_borrowings_cr_prev'] = total_borrowings_prev
+                results['net_debt_cr_prev'] = net_debt_prev
+
+        results['current_ratio'] = current_ratio
+        results['current_ratio_prev'] = current_ratio_prev
+        
+        results['cwip_cr'] = fd.get('cwip')
+        results['cwip_cr_prev'] = fd.get('cwip_prev')
+        
+        results['trade_receivables_cr'] = fd.get('trade_receivables')
+        results['trade_receivables_cr_prev'] = fd.get('trade_receivables_prev')
+        
+        results['inventories_cr'] = fd.get('inventories')
+        results['inventories_cr_prev'] = fd.get('inventories_prev')
+
+        # ── Operational Cash Flow Speeds (Days) ───────────────────────────────
+        rev_curr = fd.get('revenue_fy_current') or fd.get('total_income_fy_current') or ((fd.get('revenue_q_current') or fd.get('total_income_q_current') or 0) * 4)
+        rev_prev = fd.get('revenue_fy_prev') or fd.get('total_income_fy_prev') or ((fd.get('revenue_q_prev') or fd.get('total_income_q_prev') or 0) * 4)
+
+        if rev_curr and rev_curr > 0:
+            if fd.get('inventories') is not None:
+                results['inventory_days'] = (fd.get('inventories') / rev_curr) * 365
+            if fd.get('trade_receivables') is not None:
+                results['debtor_days'] = (fd.get('trade_receivables') / rev_curr) * 365
+                
+        if rev_prev and rev_prev > 0:
+            if fd.get('inventories_prev') is not None:
+                results['inventory_days_ly'] = (fd.get('inventories_prev') / rev_prev) * 365
+            if fd.get('trade_receivables_prev') is not None:
+                results['debtor_days_ly'] = (fd.get('trade_receivables_prev') / rev_prev) * 365
+
+        # ── Cash Flow Statement Metrics ───────────────────────────────────────
+        ocf = fd.get('operating_cash_flow')
+        capex = fd.get('capex')
+        fcf = None
+        if ocf is not None and capex is not None:
+            fcf = ocf - abs(capex)
+
+        ocf_prev = fd.get('operating_cash_flow_prev')
+        capex_prev = fd.get('capex_prev')
+        fcf_prev = None
+        if ocf_prev is not None and capex_prev is not None:
+            fcf_prev = ocf_prev - abs(capex_prev)
+
+        results['operating_cash_flow_cr'] = ocf
+        results['operating_profit_pre_wc_cr'] = fd.get('operating_profit_pre_wc')
+        results['investing_cash_flow_cr'] = fd.get('investing_cash_flow')
+        results['capex_cr'] = capex
+        results['financing_cash_flow_cr'] = fd.get('financing_cash_flow')
+        results['proceeds_borrowings_cr'] = fd.get('proceeds_borrowings')
+        results['repayment_borrowings_cr'] = fd.get('repayment_borrowings')
+        results['free_cash_flow_cr'] = fcf
+
+        results['operating_cash_flow_cr_prev'] = ocf_prev
+        results['operating_profit_pre_wc_cr_prev'] = fd.get('operating_profit_pre_wc_prev')
+        results['investing_cash_flow_cr_prev'] = fd.get('investing_cash_flow_prev')
+        results['capex_cr_prev'] = capex_prev
+        results['financing_cash_flow_cr_prev'] = fd.get('financing_cash_flow_prev')
+        results['proceeds_borrowings_cr_prev'] = fd.get('proceeds_borrowings_prev')
+        results['repayment_borrowings_cr_prev'] = fd.get('repayment_borrowings_prev')
+        results['free_cash_flow_cr_prev'] = fcf_prev
 
         # Remove None values
         results = {k: v for k, v in results.items() if v is not None}

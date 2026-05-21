@@ -22,18 +22,20 @@ logger = logging.getLogger(__name__)
 def clean_number(token: str):
     if not token:
         return None
-    token = token.strip()
-    token = re.sub(r'[₹$%,]|Rs\.?', '', token)
-    negative = (token.startswith("(") and token.endswith(")")) or (token.startswith("[") and token.endswith(")"))
-    token = token.strip("()[]")
-    # token.replace(",", "") is redundant if we include it in the re.sub above
+    t = token.strip().replace(" ", "")
+    # Check for accounting negative notation
+    is_negative = (t.startswith("(") and t.endswith(")")) or (t.startswith("[") and t.endswith("]")) or t.startswith("-")
+    # Strip brackets, currency symbols, commas, and hyphens used as padding
+    t = re.sub(r'[₹$%,()\[\]\s\-–—]|Rs\.?', '', t)
+    if not t:
+        return None
     try:
-        val = float(token)
+        val = float(t)
         # Reject obvious noise: single/double digit ints (row indices, notes)
-        if val == int(val) and abs(val) < 100:
+        if val == int(val) and abs(val) < 100 and not is_negative and "." not in token:
             return None
-        return -val if negative else val
-    except:
+        return -val if is_negative else val
+    except ValueError:
         return None
 
 
@@ -252,6 +254,76 @@ FINANCIAL_CONCEPTS = {
         "basic earnings per share",
         "basic eps",
         "basic in rupees",
+    ],
+    "non_current_borrowings": [
+        "long term borrowings",
+        "non current borrowings",
+    ],
+    "current_borrowings": [
+        "short term borrowings",
+        "current borrowings",
+    ],
+    "cash_equivalents": [
+        "cash and cash equivalents",
+    ],
+    "bank_balances": [
+        "bank balances other than",
+        "other bank balances",
+    ],
+    "cwip": [
+        "capital work in progress",
+        "cwip",
+    ],
+    "trade_receivables": [
+        "trade receivables",
+        "sundry debtors",
+    ],
+    "inventories": [
+        "inventories",
+    ],
+    "total_current_assets": [
+        "total current assets",
+    ],
+    "total_current_liabilities": [
+        "total current liabilities",
+    ],
+    "operating_cash_flow": [
+        "net cash flow from operating activities",
+        "net cash used in operating activities",
+        "net cash flow generated from operating activities",
+        "net cash from operating activities",
+    ],
+    "operating_profit_pre_wc": [
+        "operating profit before working capital",
+        "operating profit before wc",
+    ],
+    "investing_cash_flow": [
+        "net cash flow from investing activities",
+        "net cash used in investing activities",
+        "net cash flow from/used in investing activities",
+        "net cash used in investing",
+    ],
+    "capex": [
+        "purchase of property",
+        "payment for acquisition of property",
+        "addition to property",
+        "purchase of plant and equipment",
+    ],
+    "financing_cash_flow": [
+        "net cash flow from financing activities",
+        "net cash used in financing activities",
+        "net cash flow from/used in financing activities",
+        "net cash from/used in financing",
+    ],
+    "proceeds_borrowings": [
+        "proceeds from long term borrowings",
+        "proceeds from borrowings",
+        "issuance of debt",
+    ],
+    "repayment_borrowings": [
+        "repayment of long term borrowings",
+        "repayment of borrowings",
+        "repayment of debt",
     ]
 }
 
@@ -403,8 +475,48 @@ def extract_financial_table(table_text: str, table_page: int):
         "profit_before_tax_fy_prev": get_value(mapped, "profit_before_tax", 4),
         "pat_fy_prev": get_value(mapped, "net_profit", 4),
 
+        # Balance Sheet Current (Index 0)
+        "non_current_borrowings": get_value(mapped, "non_current_borrowings", 0),
+        "current_borrowings": get_value(mapped, "current_borrowings", 0),
+        "cash_equivalents": get_value(mapped, "cash_equivalents", 0),
+        "bank_balances": get_value(mapped, "bank_balances", 0),
+        "cwip": get_value(mapped, "cwip", 0),
+        "trade_receivables": get_value(mapped, "trade_receivables", 0),
+        "inventories": get_value(mapped, "inventories", 0),
+        "total_current_assets": get_value(mapped, "total_current_assets", 0),
+        "total_current_liabilities": get_value(mapped, "total_current_liabilities", 0),
+
+        # Balance Sheet Previous (Index 1)
+        "non_current_borrowings_prev": get_value(mapped, "non_current_borrowings", 1),
+        "current_borrowings_prev": get_value(mapped, "current_borrowings", 1),
+        "cash_equivalents_prev": get_value(mapped, "cash_equivalents", 1),
+        "bank_balances_prev": get_value(mapped, "bank_balances", 1),
+        "cwip_prev": get_value(mapped, "cwip", 1),
+        "trade_receivables_prev": get_value(mapped, "trade_receivables", 1),
+        "inventories_prev": get_value(mapped, "inventories", 1),
+        "total_current_assets_prev": get_value(mapped, "total_current_assets", 1),
+        "total_current_liabilities_prev": get_value(mapped, "total_current_liabilities", 1),
+
+        # Cash Flow Current (Index 0)
+        "operating_cash_flow": get_value(mapped, "operating_cash_flow", 0),
+        "operating_profit_pre_wc": get_value(mapped, "operating_profit_pre_wc", 0),
+        "investing_cash_flow": get_value(mapped, "investing_cash_flow", 0),
+        "capex": get_value(mapped, "capex", 0),
+        "financing_cash_flow": get_value(mapped, "financing_cash_flow", 0),
+        "proceeds_borrowings": get_value(mapped, "proceeds_borrowings", 0),
+        "repayment_borrowings": get_value(mapped, "repayment_borrowings", 0),
+
+        # Cash Flow Previous (Index 1)
+        "operating_cash_flow_prev": get_value(mapped, "operating_cash_flow", 1),
+        "operating_profit_pre_wc_prev": get_value(mapped, "operating_profit_pre_wc", 1),
+        "investing_cash_flow_prev": get_value(mapped, "investing_cash_flow", 1),
+        "capex_prev": get_value(mapped, "capex", 1),
+        "financing_cash_flow_prev": get_value(mapped, "financing_cash_flow", 1),
+        "proceeds_borrowings_prev": get_value(mapped, "proceeds_borrowings", 1),
+        "repayment_borrowings_prev": get_value(mapped, "repayment_borrowings", 1),
+
         "source_page": table_page,
-        "extraction_confidence": "high" if get_value(mapped, "net_profit", 0) else "low",
+        "extraction_confidence": "high" if (get_value(mapped, "net_profit", 0) or get_value(mapped, "total_current_assets", 0)) else "low",
     }
 
     return {k: v for k, v in financial_data.items() if v is not None}
@@ -456,6 +568,63 @@ def find_pl_page(extracted_text: dict):
             best_score, best_page, best_text = score, int(i), text
     return best_text, best_page
 
+_BS_SIGNALS = [
+    (3, r'statement\s+of\s+assets\s+and\s+liabilities'),
+    (3, r'balance\s+sheet'),
+    (2, r'non-current\s+assets'),
+    (2, r'equity\s+and\s+liabilities'),
+    (1, r'capital\s+work-in-progress'),
+    (1, r'trade\s+receivables'),
+]
+
+def find_bs_page(extracted_text: dict):
+    best_page, best_score, best_text = -1, -999, ''
+    for i, text in extracted_text.items():
+        t = text.lower()
+        score = sum(w for w, pat in _BS_SIGNALS if re.search(pat, t))
+        
+        # Penalize auditor reports and notes which contain dense financial terms but aren't tables
+        if 'independent auditor' in t or 'we have audited' in t or 'in our opinion' in t:
+            score -= 20
+        if 'notes to the' in t and 'statement of' not in t:
+            score -= 10
+
+        num_count = len(re.findall(r'\d+', t))
+        if num_count > 50:
+            score += 2
+            
+        if score > best_score:
+            best_score, best_page, best_text = score, int(i), text
+    return best_text, best_page
+
+_CF_SIGNALS = [
+    (3, r'statement\s+of\s+(?:standalone\s+)?cash\s+flows'),
+    (3, r'cash\s+flow\s+statement'),
+    (2, r'cash\s+flow\s+from\s+operating\s+activities'),
+    (2, r'operating\s+profit\s+before\s+working\s+capital'),
+    (1, r'net\s+cash\s+(?:flow\s+)?(?:from|used\s+in)\s+investing'),
+    (1, r'net\s+cash\s+(?:flow\s+)?(?:from|used\s+in)\s+financing'),
+]
+
+def find_cf_page(extracted_text: dict):
+    best_page, best_score, best_text = -1, -999, ''
+    for i, text in extracted_text.items():
+        t = text.lower()
+        score = sum(w for w, pat in _CF_SIGNALS if re.search(pat, t))
+        
+        if 'independent auditor' in t or 'we have audited' in t or 'in our opinion' in t:
+            score -= 20
+        if 'notes to the' in t and 'statement of' not in t:
+            score -= 10
+
+        num_count = len(re.findall(r'\d+', t))
+        if num_count > 40:
+            score += 2
+            
+        if score > best_score:
+            best_score, best_page, best_text = score, int(i), text
+    return best_text, best_page
+
 
 # ==========================================================
 # CELERY TASK — CALLED BY AGENT 4
@@ -471,20 +640,69 @@ def process_tables(document_id: str):
         db.commit()
 
         extracted_text = doc_record.extracted_text or {}
-        table_text, table_page = find_pl_page(extracted_text)
-        if not table_text:
-            raise ValueError("No P&L table found.")
+        
+        # Process P&L Page
+        pl_table_text, pl_table_page = find_pl_page(extracted_text)
+        financial_data = {}
+        if pl_table_text:
+            financial_data.update(extract_financial_table(pl_table_text, pl_table_page))
+        else:
+            logger.warning("[Agent5] No P&L table found. Proceeding with caution.")
+            
+        # Process Balance Sheet Page
+        bs_table_text, bs_table_page = find_bs_page(extracted_text)
+        if bs_table_text:
+            bs_data = extract_financial_table(bs_table_text, bs_table_page)
+            bs_keys = {
+                "non_current_borrowings", "current_borrowings", "cash_equivalents", "bank_balances", 
+                "cwip", "trade_receivables", "inventories", "total_current_assets", "total_current_liabilities",
+                "non_current_borrowings_prev", "current_borrowings_prev", "cash_equivalents_prev", 
+                "bank_balances_prev", "cwip_prev", "trade_receivables_prev", "inventories_prev", 
+                "total_current_assets_prev", "total_current_liabilities_prev"
+            }
+            bs_filtered = {k: v for k, v in bs_data.items() if k in bs_keys}
+            financial_data.update(bs_filtered)
+        else:
+            logger.info("[Agent5] No Balance Sheet found. Skipping BS extraction.")
 
-        financial_data = extract_financial_table(table_text, table_page)
+        # Process Cash Flow Page
+        cf_table_text, cf_table_page = find_cf_page(extracted_text)
+        if cf_table_text:
+            cf_data = extract_financial_table(cf_table_text, cf_table_page)
+            cf_keys = {
+                "operating_cash_flow", "operating_profit_pre_wc", "investing_cash_flow", "capex", 
+                "financing_cash_flow", "proceeds_borrowings", "repayment_borrowings",
+                "operating_cash_flow_prev", "operating_profit_pre_wc_prev", "investing_cash_flow_prev", 
+                "capex_prev", "financing_cash_flow_prev", "proceeds_borrowings_prev", "repayment_borrowings_prev"
+            }
+            cf_filtered = {k: v for k, v in cf_data.items() if k in cf_keys}
+            financial_data.update(cf_filtered)
+        else:
+            logger.info("[Agent5] No Cash Flow found. Skipping CF extraction.")
+
+        if not financial_data:
+            raise ValueError("No financial data could be extracted from either P&L or Balance Sheet.")
 
         logger.info(f"[Agent5] Final extracted: {financial_data}")
         doc_record.financial_data = financial_data
+        
+        # --- Export Temporary Parsed Data to File ---
+        import json
+        import os
+        export_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "exports"))
+        os.makedirs(export_dir, exist_ok=True)
+        dump_path = os.path.join(export_dir, f"{document_id}_parsed_data.json")
+        with open(dump_path, "w", encoding="utf-8") as f:
+            json.dump(financial_data, f, indent=4)
+        logger.info(f"[Agent5] Dumped temporary parsed data to {dump_path}")
+        
         db.commit()
         logger.info(f"Agent 5 (Table Extraction) completed for {document_id}")
 
     except Exception as e:
         logger.error(f"[Agent5] Error: {e}", exc_info=True)
         doc_record.processing_status = ProcessingStatus.FAILED
+        doc_record.error_message = f"Agent 5 Error: {str(e)}"
         db.commit()
     finally:
         db.close()
