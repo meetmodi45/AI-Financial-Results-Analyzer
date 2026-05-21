@@ -202,11 +202,12 @@ function App() {
             <div className="w-8 h-8 rounded-none border-2 border-brutalist-dark bg-brutalist-orange flex items-center justify-center shadow-[2px_2px_0px_0px_#1A1A1A]">
               <Activity className="text-brutalist-dark" size={20} />
             </div>
-            <h1 className="text-xl font-black tracking-tight uppercase">
-              AI Financial Results <span className="font-serif italic text-brutalist-green lowercase capitalize">Analyzer.</span>
+            <h1 className="text-base sm:text-xl font-black tracking-tight uppercase flex flex-col sm:flex-row sm:gap-1 leading-none sm:leading-normal">
+              <span>AI Financial Results</span>
+              <span className="font-serif italic text-brutalist-green lowercase capitalize mt-1 sm:mt-0">Analyzer.</span>
             </h1>
           </div>
-          <div className="text-sm text-brutalist-dark font-mono uppercase tracking-widest font-bold">
+          <div className="hidden md:block text-sm text-brutalist-dark font-mono uppercase tracking-widest font-bold">
             DETERMINISTIC-COGNITIVE PIPELINE
           </div>
         </div>
@@ -373,7 +374,7 @@ function App() {
                 </div>
 
                 {statusData?.metadata && (
-                  <div className="grid grid-cols-2 gap-4 mt-6 pt-4 border-t-4 border-brutalist-dark text-brutalist-dark font-mono text-xs uppercase tracking-widest font-bold bg-white p-4 border-x-4 border-b-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 pt-4 border-t-4 border-brutalist-dark text-brutalist-dark font-mono text-xs uppercase tracking-widest font-bold bg-white p-4 border-x-4 border-b-4">
                     <div>Category: <span className="text-brutalist-green">{statusData.metadata.document_category || '...'}</span></div>
                     <div>PDF Type: <span className="text-brutalist-green">{statusData.metadata.pdf_type || '...'}</span></div>
                     <div>Pages: <span className="text-brutalist-green">{statusData.metadata.total_pages || '...'}</span></div>
@@ -384,7 +385,7 @@ function App() {
 
               {/* Quick Metrics (Appears when completed) */}
               {statusData?.analysis_results && (
-                <div className="grid grid-cols-3 gap-8 mt-6">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-8 mt-6">
                   {[
                     { label: 'Rev QoQ', key: 'qoq_growth', icon: <TrendingUp size={14} /> },
                     { label: 'Rev YoY', key: 'yoy_growth', icon: <TrendingUp size={14} /> },
@@ -503,15 +504,31 @@ function App() {
                 <div className="space-y-6">
                   <div className="p-4 border-4 border-brutalist-dark bg-white shadow-[4px_4px_0px_0px_#1A1A1A]">
                     <h4 className="text-sm font-black text-brutalist-dark mb-2 uppercase tracking-widest bg-brutalist-orange text-white inline-block px-2 py-1">Executive Overview</h4>
-                    <p className="text-brutalist-dark font-medium leading-relaxed">{statusData.nlp_summary.executive_summary}</p>
+                    {Array.isArray(statusData.nlp_summary.executive_summary) ? (
+                      <ul className="space-y-2 list-disc pl-5 marker:text-brutalist-orange">
+                        {statusData.nlp_summary.executive_summary.map((pt, i) => (
+                          <li key={i} className="text-brutalist-dark font-medium leading-relaxed">{pt}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-brutalist-dark font-medium leading-relaxed">{statusData.nlp_summary.executive_summary}</p>
+                    )}
                   </div>
 
                   <div className="p-4 border-4 border-brutalist-dark bg-white shadow-[4px_4px_0px_0px_#1A1A1A]">
                     <h4 className="text-sm font-black text-brutalist-dark mb-2 uppercase tracking-widest bg-brutalist-green text-white inline-block px-2 py-1">Retail Investor Context</h4>
-                    <p className="text-brutalist-dark font-medium leading-relaxed">{statusData.nlp_summary.investor_explanation}</p>
+                    {Array.isArray(statusData.nlp_summary.investor_explanation) ? (
+                      <ul className="space-y-2 list-disc pl-5 marker:text-brutalist-green">
+                        {statusData.nlp_summary.investor_explanation.map((pt, i) => (
+                          <li key={i} className="text-brutalist-dark font-medium leading-relaxed">{pt}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-brutalist-dark font-medium leading-relaxed">{statusData.nlp_summary.investor_explanation}</p>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-6 mt-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-4">
                     <div className="border-t-4 border-brutalist-dark pt-4">
                       <h4 className="text-sm font-black text-brutalist-green mb-3 uppercase tracking-widest">Key Highlights</h4>
                       <ul className="space-y-2">
@@ -556,7 +573,7 @@ function App() {
                   <div>
                     <div className="text-brutalist-dark text-xs font-bold font-mono uppercase tracking-widest mb-1 group relative cursor-help flex w-max items-center">
                       Total Borrowings
-                      <div className="pointer-events-none absolute left-0 bottom-full mb-1 w-64 opacity-0 transition-opacity group-hover:opacity-100 bg-brutalist-dark text-white text-[10px] p-2 z-50 normal-case shadow-[2px_2px_0px_0px_#D95A2B] border-2 border-brutalist-dark">
+                      <div className="pointer-events-none absolute left-0 bottom-full mb-1 w-56 sm:w-64 opacity-0 transition-opacity group-hover:opacity-100 bg-brutalist-dark text-white text-[10px] p-2 z-50 normal-case shadow-[2px_2px_0px_0px_#D95A2B] border-2 border-brutalist-dark">
                         Calculated as: Non-Current Borrowings + Current Borrowings
                       </div>
                     </div>
@@ -574,7 +591,7 @@ function App() {
                   <div>
                     <div className="text-brutalist-dark text-xs font-bold font-mono uppercase tracking-widest mb-1 group relative cursor-help flex w-max items-center">
                       Net Debt (Debt Minus Cash)
-                      <div className="pointer-events-none absolute left-0 bottom-full mb-1 w-64 opacity-0 transition-opacity group-hover:opacity-100 bg-brutalist-dark text-white text-[10px] p-2 z-50 normal-case shadow-[2px_2px_0px_0px_#D95A2B] border-2 border-brutalist-dark">
+                      <div className="pointer-events-none absolute left-0 bottom-full mb-1 w-56 sm:w-64 opacity-0 transition-opacity group-hover:opacity-100 bg-brutalist-dark text-white text-[10px] p-2 z-50 normal-case shadow-[2px_2px_0px_0px_#D95A2B] border-2 border-brutalist-dark">
                         Calculated as: Total Borrowings - (Cash Equivalents + Bank Balances)
                       </div>
                     </div>
@@ -616,7 +633,7 @@ function App() {
                     <div className="flex items-center justify-between mb-1">
                       <div className="text-brutalist-dark text-xs font-bold font-mono uppercase tracking-widest group relative cursor-help flex w-max items-center">
                         Liquidity Ratio (Current Ratio)
-                        <div className="pointer-events-none absolute left-0 bottom-full mb-1 w-64 opacity-0 transition-opacity group-hover:opacity-100 bg-brutalist-dark text-white text-[10px] p-2 z-50 normal-case shadow-[2px_2px_0px_0px_#D95A2B] border-2 border-brutalist-dark">
+                        <div className="pointer-events-none absolute left-0 bottom-full mb-1 w-56 sm:w-64 opacity-0 transition-opacity group-hover:opacity-100 bg-brutalist-dark text-white text-[10px] p-2 z-50 normal-case shadow-[2px_2px_0px_0px_#D95A2B] border-2 border-brutalist-dark">
                           Calculated as: Total Current Assets / Total Current Liabilities
                         </div>
                       </div>

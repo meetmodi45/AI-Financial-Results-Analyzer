@@ -8,8 +8,8 @@ from pydantic import BaseModel, Field
 logger = logging.getLogger(__name__)
 
 class LLMSummarySchema(BaseModel):
-    executive_summary: str = Field(description="A professional 2-paragraph financial executive summary analyzing the report's overarching narrative.")
-    investor_explanation: str = Field(description="A simple, retail-investor friendly explanation of the company's quarter.")
+    executive_summary: list[str] = Field(description="A professional financial executive summary provided as 3-4 distinct bullet points analyzing the report's overarching narrative.")
+    investor_explanation: list[str] = Field(description="A simple, retail-investor friendly explanation of the company's quarter provided as 3-4 distinct bullet points.")
     highlights: list[str] = Field(description="List of 3-4 positive highlights, strong metrics, or tailwinds.")
     risks: list[str] = Field(description="List of 3-4 risks, headwinds, or negative metrics (e.g., declining margins).")
 
