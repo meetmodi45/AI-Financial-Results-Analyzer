@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Upload, FileText, CheckCircle, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Activity } from 'lucide-react';
+import { Activity, FileText, Upload, AlertTriangle, TrendingUp, BarChart3, Database, FileDigit, Calendar, CheckCircle, DollarSign, TrendingDown } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
+import GlobalAssistant from './components/GlobalAssistant';
 
-const API_BASE = 'http://localhost:8000/api/v1';
+const API_BASE = `http://${window.location.hostname}:8000/api/v1`;
 
 function App() {
   const [file, setFile] = useState(null);
@@ -14,10 +15,28 @@ function App() {
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
 
+  // Concall Ingestion States
+  const [concallFile, setConcallFile] = useState(null);
+  const [concallCompanyName, setConcallCompanyName] = useState("");
+  const [concallQuarter, setConcallQuarter] = useState("");
+  const [concallFiscalYear, setConcallFiscalYear] = useState("");
+  const [concallDocumentId, setConcallDocumentId] = useState(null);
+  const [concallStatusData, setConcallStatusData] = useState(null);
+  const [concallError, setConcallError] = useState(null);
+  const [isConcallUploading, setIsConcallUploading] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [currentQuery, setCurrentQuery] = useState("");
+  const [isChatLoading, setIsChatLoading] = useState(false);
+
   // New Interactive Loader States
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [activePhaseText, setActivePhaseText] = useState("");
+  const [activeTab, setActiveTab] = useState("RESULTS");
+
+  const [isConcallAnalyzing, setIsConcallAnalyzing] = useState(false);
+  const [concallProgress, setConcallProgress] = useState(0);
+  const [concallPhaseText, setConcallPhaseText] = useState("");
 
   useEffect(() => {
     const handleScroll = () => {
@@ -88,6 +107,52 @@ function App() {
   }, [statusData?.status, isAnalyzing]);
 
   useEffect(() => {
+    let timeoutId;
+    let isCancelled = false;
+
+    if (concallStatusData?.status === 'PENDING') {
+      setIsConcallAnalyzing(true);
+      setConcallProgress(0);
+      setConcallPhaseText("INITIALIZING VECTOR STORE...");
+
+      const runProgress = (current) => {
+        if (isCancelled) return;
+        let nextProgress = current;
+        let delay = 300;
+
+        if (current < 35) {
+          nextProgress = current + 7;
+          delay = 300;
+          setConcallPhaseText("EXTRACTING TEXT CONTENT...");
+        } else if (current < 75) {
+          nextProgress = current + 4;
+          delay = 400;
+          setConcallPhaseText("GENERATING SEMANTIC EMBEDDINGS...");
+        } else if (current < 95) {
+          nextProgress = current + 1;
+          delay = 1000;
+          setConcallPhaseText("UPSERTING TO PINECONE CLUSTER...");
+        } else {
+          nextProgress = current;
+          delay = 1000;
+        }
+
+        setConcallProgress(nextProgress);
+        timeoutId = setTimeout(() => runProgress(nextProgress), delay);
+      };
+
+      runProgress(0);
+    } else {
+       setIsConcallAnalyzing(false);
+    }
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [concallStatusData?.status]);
+
+  useEffect(() => {
     let interval;
     if (documentId && (!statusData || statusData.status !== 'COMPLETED' && statusData.status !== 'FAILED')) {
       interval = setInterval(async () => {
@@ -133,6 +198,27 @@ function App() {
     return () => clearInterval(interval);
   }, [documentId, statusData]);
 
+  // Concall Polling
+  useEffect(() => {
+    let interval;
+    if (concallDocumentId && (!concallStatusData || concallStatusData.status !== 'COMPLETED' && concallStatusData.status !== 'FAILED')) {
+      interval = setInterval(async () => {
+        try {
+          const res = await axios.get(`${API_BASE}/concall/status/${concallDocumentId}`);
+          setConcallStatusData(res.data);
+          
+          if (res.data.status === 'COMPLETED') {
+            // Optional: route or trigger next UI step here
+            console.log("Concall chunking completed.");
+          }
+        } catch (e) {
+          console.error("Concall polling failed:", e);
+        }
+      }, 2000);
+    }
+    return () => clearInterval(interval);
+  }, [concallDocumentId, concallStatusData]);
+
   const handleDragOver = (e) => {
     e.preventDefault();
     setIsDragging(true);
@@ -176,6 +262,59 @@ function App() {
     }
   };
 
+  const uploadConcall = async (e) => {
+    e.preventDefault();
+    if (!concallFile) {
+      setConcallError("Please select a file.");
+      return;
+    }
+    setConcallError(null);
+    setIsConcallUploading(true);
+
+    const formData = new FormData();
+    formData.append("file", concallFile);
+    formData.append("company_name", "Unknown");
+    formData.append("quarter", "N/A");
+    formData.append("fiscal_year", "N/A");
+
+    try {
+      const res = await axios.post(`${API_BASE}/concall/upload-and-process`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setConcallDocumentId(res.data.document_id);
+      setConcallStatusData({ status: res.data.status });
+    } catch (e) {
+      setConcallError("Failed to start Concall ingestion. Ensure backend is running.");
+      console.error(e);
+    } finally {
+      setIsConcallUploading(false);
+    }
+  };
+
+  const sendChatMessage = async (e) => {
+    e.preventDefault();
+    if (!currentQuery.trim() || !concallDocumentId) return;
+    
+    const userMsg = { role: "user", content: currentQuery };
+    setChatMessages(prev => [...prev, userMsg]);
+    setCurrentQuery("");
+    setIsChatLoading(true);
+    
+    try {
+      const res = await axios.post(`${API_BASE}/concall/chat`, {
+        document_id: concallDocumentId,
+        query: userMsg.content
+      });
+      const aiMsg = { role: "ai", content: res.data.answer, sources: res.data.sources };
+      setChatMessages(prev => [...prev, aiMsg]);
+    } catch (e) {
+      console.error(e);
+      setChatMessages(prev => [...prev, { role: "ai", content: "Error: Failed to fetch response." }]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
   const renderVerdictBadge = (verdictData) => {
     if (!verdictData) return null;
     const { verdict, confidence } = verdictData;
@@ -214,6 +353,29 @@ function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-10 space-y-12">
+
+        {/* Toggle Bar */}
+        <div className="flex justify-center mb-8">
+          <div className="flex bg-white border-4 border-brutalist-dark shadow-[4px_4px_0px_0px_#1A1A1A]">
+            <button
+              onClick={() => setActiveTab('RESULTS')}
+              className={`px-6 py-3 font-black uppercase tracking-widest transition-colors ${activeTab === 'RESULTS' ? 'bg-brutalist-orange text-brutalist-dark' : 'bg-transparent text-brutalist-dark hover:bg-stone-100'}`}
+            >
+              Results Analysis
+            </button>
+            <div className="w-1 bg-brutalist-dark"></div>
+            <button
+              onClick={() => setActiveTab('CONCALL')}
+              className={`px-6 py-3 font-black uppercase tracking-widest transition-colors ${activeTab === 'CONCALL' ? 'bg-[#FF6B6B] text-white' : 'bg-transparent text-brutalist-dark hover:bg-stone-100'}`}
+            >
+              Earnings Calls
+            </button>
+          </div>
+        </div>
+
+        {activeTab === 'RESULTS' && (
+          <div className="space-y-12">
+
 
         {/* Top Section: Upload & Status */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -258,7 +420,8 @@ function App() {
                 {statusData && !['FAILED', 'COMPLETED'].includes(statusData.status) ? 'Processing...' : 'Analyze Document'}
               </button>
             </div>
-          </div>
+
+                      </div>
 
           {/* Processing Status & Quick Metrics */}
           <div className="lg:col-span-2">
@@ -865,7 +1028,123 @@ function App() {
           </div>
         )}
 
+      
+          </div>
+        )}
+
+        {activeTab === 'CONCALL' && (
+          <div className="max-w-3xl mx-auto w-full">
+            {/* CONCALL INGESTION PANEL OR CHAT INTERFACE */}
+            <div className="border-t-4 border-black my-8"></div>
+            
+            {concallStatusData?.status === 'COMPLETED' ? (
+              <div className="brutalist-panel flex flex-col border-4 border-brutalist-dark shadow-[4px_4px_0px_0px_#1A1A1A] bg-[#FDFBF7] h-[600px] sm:h-[500px]">
+                <div className="bg-[#1A1A1A] text-white p-3 sm:p-4 font-black uppercase tracking-widest border-b-4 border-brutalist-dark flex justify-between items-center gap-2">
+                  <span className="truncate pr-4 text-sm sm:text-base">Chat: {concallFile ? concallFile.name : 'Transcript'}</span>
+                  <button onClick={() => {setConcallStatusData(null); setConcallDocumentId(null); setChatMessages([]); setConcallFile(null)}} className="text-[10px] sm:text-xs whitespace-nowrap bg-white text-black px-2 py-1 border-2 border-black hover:bg-[#FF6B6B] hover:text-white transition-colors">[ NEW SESSION ]</button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {chatMessages.length === 0 && (
+                     <div className="text-center font-mono text-sm text-stone-500 mt-10">
+                        Ask any question about the Earnings Call transcript.
+                     </div>
+                  )}
+                  {chatMessages.map((msg, idx) => (
+                    <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`p-3 max-w-[85%] border-2 border-black font-mono text-sm shadow-[2px_2px_0px_0px_#000000] ${msg.role === 'user' ? 'bg-[#FF6B6B] text-white' : 'bg-white text-black'}`}>
+                        {msg.content}
+                      </div>
+                    </div>
+                  ))}
+                  {isChatLoading && (
+                    <div className="flex justify-start">
+                       <div className="p-3 border-2 border-black font-mono text-sm shadow-[2px_2px_0px_0px_#000000] bg-white text-black animate-pulse">
+                         Analyzing semantic context...
+                       </div>
+                    </div>
+                  )}
+                </div>
+                
+                <form onSubmit={sendChatMessage} className="border-t-4 border-black p-4 bg-white flex gap-2">
+                  <input 
+                    type="text" 
+                    value={currentQuery}
+                    onChange={(e) => setCurrentQuery(e.target.value)}
+                    placeholder="Ask a question..."
+                    className="flex-1 border-2 border-black p-3 font-mono text-sm outline-none focus:bg-stone-100"
+                  />
+                  <button 
+                    type="submit"
+                    disabled={isChatLoading || !currentQuery.trim()}
+                    className="px-6 bg-[#FF6B6B] text-white border-2 border-black font-black uppercase tracking-widest hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[4px_4px_0px_0px_#000000] transition-all disabled:opacity-50 disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-none"
+                  >
+                    Send
+                  </button>
+                </form>
+              </div>
+            ) : (
+            <div className="brutalist-panel p-4 sm:p-8 flex flex-col border-4 border-brutalist-dark shadow-[4px_4px_0px_0px_#1A1A1A] bg-[#FDFBF7]">
+              <h2 className="text-base sm:text-lg font-black uppercase tracking-tight text-brutalist-dark mb-4 flex items-center gap-2">
+                <FileText className="text-[#FF6B6B]" size={24} strokeWidth={3} />
+                Analyze Earnings Call Transcript
+              </h2>
+              
+              <form onSubmit={uploadConcall} className="flex flex-col gap-4">
+                
+                <label className="cursor-pointer border-2 border-dashed border-black p-4 text-center font-bold uppercase font-mono text-sm hover:bg-black/5 transition-colors">
+                  {concallFile ? concallFile.name : "SELECT TRANSCRIPT (.TXT/.PDF)"}
+                  <input 
+                    type="file" 
+                    className="hidden" 
+                    accept="application/pdf, text/plain" 
+                    onChange={(e) => setConcallFile(e.target.files[0])} 
+                  />
+                </label>
+
+                {concallError && (
+                  <div className="text-[#FF6B6B] font-bold text-xs uppercase flex items-center gap-2 mt-2">
+                    <AlertTriangle size={16} /> {concallError}
+                  </div>
+                )}
+                
+                {concallStatusData && concallStatusData.status === 'PENDING' && (
+                  <div className="mt-4 p-3 sm:p-4 border-2 border-brutalist-dark bg-stone-50 font-mono text-[10px] sm:text-xs">
+                    <div className="flex justify-between mb-2">
+                      <span className="font-bold text-[#FF6B6B] uppercase">{concallPhaseText}</span>
+                      <span className="font-bold">{concallProgress}%</span>
+                    </div>
+                    <div className="w-full h-3 sm:h-4 border-2 border-brutalist-dark bg-white relative overflow-hidden">
+                      <div className="absolute top-0 left-0 h-full bg-[#FF6B6B] transition-all duration-300" style={{ width: `${concallProgress}%` }}>
+                        <div className="w-full h-full opacity-20 bg-[repeating-linear-gradient(45deg,transparent,transparent_5px,#000_5px,#000_10px)]"></div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {concallStatusData?.error_message && (
+                  <div className="text-[#FF6B6B] font-bold text-xs flex flex-col gap-1 mt-4 p-3 border-2 border-[#FF6B6B] bg-[#FF6B6B]/10 break-words">
+                    <span className="uppercase flex items-center gap-2"><AlertTriangle size={16} /> Error Details:</span>
+                    <span className="font-mono">{concallStatusData.error_message}</span>
+                  </div>
+                )}
+
+                <button 
+                  type="submit"
+                  disabled={isConcallUploading || (concallStatusData && !['FAILED', 'COMPLETED'].includes(concallStatusData.status))}
+                  className="mt-4 w-full py-4 px-4 bg-[#FF6B6B] text-white border-2 border-black font-black uppercase tracking-widest hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[4px_4px_0px_0px_#000000] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-none"
+                >
+                  {isConcallUploading || (concallStatusData && !['FAILED', 'COMPLETED'].includes(concallStatusData.status)) ? 'Processing...' : '[ RUN SEMANTIC VECTOR CHUNKING ]'}
+                </button>
+              </form>
+            </div>
+            )}
+          </div>
+        )}
+
       </main>
+      
+      <GlobalAssistant />
     </div>
   );
 }

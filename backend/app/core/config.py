@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     GROQ_API_KEY: str | None = os.getenv("GROQ_API_KEY")
+    PINECONE_API_KEY: str | None = os.getenv("PINECONE_API_KEY")
+    PINECONE_INDEX_NAME: str | None = os.getenv("PINECONE_INDEX_NAME", "financial-reports-index")
     
     class Config:
         env_file = "../.env"
