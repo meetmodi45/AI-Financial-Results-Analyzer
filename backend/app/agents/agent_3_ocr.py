@@ -6,14 +6,13 @@ import traceback
 
 logger = logging.getLogger(__name__)
 
-def process_ocr(document_id: str):
+def process_ocr(document_id: str, file_path: str):
     db = SessionLocal()
     doc_record = db.query(Document).filter(Document.id == document_id).first()
     if not doc_record: return
     try:
         doc_record.processing_status = ProcessingStatus.OCR_EXTRACTION
         db.commit()
-        file_path = doc_record.metadata_json.get('file_path')
         requires_ocr = doc_record.metadata_json.get('requires_ocr', False)
         doc = fitz.open(file_path)
         extracted_text = {}

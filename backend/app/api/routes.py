@@ -63,8 +63,7 @@ async def upload_document(background_tasks: BackgroundTasks, file: UploadFile = 
         file_size=file_size,
         processing_status=ProcessingStatus.UPLOADED,
         metadata_json={
-            "total_pages": total_pages,
-            "file_path": file_path
+            "total_pages": total_pages
         }
     )
 
@@ -75,7 +74,7 @@ async def upload_document(background_tasks: BackgroundTasks, file: UploadFile = 
 
     # Trigger extraction pipeline via BackgroundTasks
     try:
-        background_tasks.add_task(run_extraction_pipeline, document_id)
+        background_tasks.add_task(run_extraction_pipeline, document_id, file_path)
         logger.info(f"[Agent 1] Dispatched Extraction Pipeline for doc_id={document_id}")
     except Exception as e:
         err_detail = f"Failed to dispatch Extraction Pipeline: {str(e)}"

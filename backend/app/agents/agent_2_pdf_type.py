@@ -6,14 +6,13 @@ from app.models.document import Document, ProcessingStatus
 
 logger = logging.getLogger(__name__)
 
-def process_pdf_type(document_id: str):
+def process_pdf_type(document_id: str, file_path: str):
     db = SessionLocal()
     doc_record = db.query(Document).filter(Document.id == document_id).first()
     if not doc_record: return
     try:
         doc_record.processing_status = ProcessingStatus.CLASSIFYING_PDF
         db.commit()
-        file_path = doc_record.metadata_json.get('file_path')
         doc = fitz.open(file_path)
         total_pages = len(doc)
         text_pages, scanned_pages = 0, 0
