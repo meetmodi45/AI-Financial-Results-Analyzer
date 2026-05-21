@@ -26,8 +26,40 @@ def process_financial_analysis(document_id: str):
         doc_record.processing_status = ProcessingStatus.FINANCIAL_ANALYSIS
         db.commit()
 
-        fd = doc_record.financial_data or {}
+        raw_fd = doc_record.financial_data or {}
+        
+        # ── Deterministic Python Scaling Matrix ──────────────────────────────
+        unit = raw_fd.get('reported_currency_unit') or ""
+        unit = unit.lower()
+        
+        # Fallback: If Gemini failed to extract the unit natively, scan the raw text!
+        if not unit:
+            extracted_text_dict = doc_record.extracted_text or {}
+            full_text = " ".join(extracted_text_dict.values()).lower()
+            if 'in lakh' in full_text or 'in lac' in full_text:
+                unit = 'lakh'
+            elif 'in million' in full_text:
+                unit = 'million'
+            elif 'in thousand' in full_text:
+                unit = 'thousand'
 
+        scale_factor = 1.0
+        if 'lakh' in unit or 'lac' in unit:
+            scale_factor = 0.01
+        elif 'million' in unit:
+            scale_factor = 0.1
+        elif 'thousand' in unit:
+            scale_factor = 0.0001
+
+        fd = {}
+        for k, v in raw_fd.items():
+            if v is not None and isinstance(v, (int, float)):
+                if k in ['basic_eps_q', 'source_page'] or k.startswith('source_page'):
+                    fd[k] = v
+                else:
+                    fd[k] = v * scale_factor
+            else:
+                fd[k] = v
         # ── Total Income (PRIMARY metric — includes Other Income) ─────────────
         # Column layout:  0=Q_curr  1=Q_prev  2=Q_yoy  3=FY_curr  4=FY_prev
         ti_q_curr  = fd.get('total_income_q_current')   # 31.03.2026 quarter
@@ -187,6 +219,7 @@ def process_financial_analysis(document_id: str):
         logger.info(f"[Agent 7] Analysis: {results}")
 
         doc_record.analysis_results = results
+        doc_record.financial_data = fd
         db.commit()
         logger.info(f"Agent 7 (Financial Analysis) completed for {document_id}")
 

@@ -14,17 +14,33 @@ def process_verdict(document_id: str):
         doc_record.processing_status = ProcessingStatus.VERDICT_PREDICTION
         db.commit()
         model = joblib.load('app/ml_models/verdict_classifier.joblib')
-        res = doc_record.analysis_results
+        res = doc_record.analysis_results or {}
+        
+        qoq = float(res.get('qoq_growth', 0) or 0)
+        yoy = float(res.get('yoy_growth', 0) or 0)
+        margin = float(res.get('net_margin', 0) or 0)
+        
+        # Calculate algorithmic earnings strength matching the training feature distribution
+        earnings_strength = (qoq * 0.4) + (yoy * 0.4) + (margin * 0.2)
+        
         df = pd.DataFrame([{
-            'qoq_growth': res.get('qoq_growth', 0),
-            'yoy_growth': res.get('yoy_growth', 0),
-            'net_margin': res.get('net_margin', 0),
-            'earnings_strength': 80
+            'qoq_growth': qoq,
+            'yoy_growth': yoy,
+            'net_margin': margin,
+            'earnings_strength': earnings_strength
         }])
+        
+        # Get actual class prediction
         pred = model.predict(df)[0]
-        doc_record.verdict = {'verdict': pred, 'confidence': 0.95}
+        
+        # Get mathematical probability for the predicted class
+        proba = model.predict_proba(df)[0]
+        class_idx = list(model.classes_).index(pred)
+        confidence = float(proba[class_idx])
+        
+        doc_record.verdict = {'verdict': pred, 'confidence': round(confidence, 2)}
         db.commit()
-        logger.info(f"Agent 9 (Verdict) completed for {document_id}")
+        logger.info(f"Agent 9 (Verdict) completed for {document_id} with prediction: {pred} ({confidence:.2f})")
     except Exception as e:
         doc_record.processing_status = ProcessingStatus.FAILED
         doc_record.error_message = str(e)

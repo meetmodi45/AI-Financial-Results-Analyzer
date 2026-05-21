@@ -14,6 +14,11 @@ function App() {
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
 
+  // New Interactive Loader States
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [activePhaseText, setActivePhaseText] = useState("");
+
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
@@ -27,6 +32,60 @@ function App() {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, [lastScrollY]);
+
+  useEffect(() => {
+    let timeoutId;
+    let isCancelled = false;
+
+    if (statusData?.status === 'TABLE_EXTRACTION') {
+      setIsAnalyzing(true);
+      setLoadingProgress(0);
+      setActivePhaseText("COMPILING FOCUS PAGES...");
+
+      const runProgress = (current) => {
+        if (isCancelled) return;
+        let nextProgress = current;
+        let delay = 300;
+
+        if (current < 45) {
+          nextProgress = current + 5;
+          delay = 300;
+          setActivePhaseText("PARSING TABULAR STRATEGY...");
+        } else if (current < 88) {
+          nextProgress = current + 2;
+          delay = 500;
+          setActivePhaseText("MAPPING SEMANTIC SCHEMA OBJECTS...");
+        } else if (current < 95) {
+          nextProgress = current + 1;
+          delay = 1500;
+          setActivePhaseText("EXECUTING INFERENCE VERIFICATION...");
+        } else {
+          nextProgress = current;
+          delay = 1000;
+        }
+
+        setLoadingProgress(nextProgress);
+        timeoutId = setTimeout(() => runProgress(nextProgress), delay);
+      };
+
+      runProgress(0);
+    } else if (isAnalyzing) {
+      isCancelled = true;
+      clearTimeout(timeoutId);
+      if (statusData?.status === 'NORMALIZING_METRICS' || statusData?.status === 'FINANCIAL_ANALYSIS' || statusData?.status === 'COMPLETED') {
+        setLoadingProgress(100);
+        setActivePhaseText("HANDING OFF TO CALCULATOR CORE...");
+        setTimeout(() => setIsAnalyzing(false), 800);
+      } else {
+        setIsAnalyzing(false);
+      }
+    }
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [statusData?.status, isAnalyzing]);
 
   useEffect(() => {
     let interval;
@@ -135,6 +194,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-brutalist-bg text-brutalist-dark font-sans selection:bg-brutalist-orange selection:text-white">
+
       {/* Header */}
       <header className={`fixed top-0 w-full z-50 transition-transform duration-300 bg-[#F2EBE3] border-b-4 border-[#1A1A1A] ${isHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -147,16 +207,16 @@ function App() {
             </h1>
           </div>
           <div className="text-sm text-brutalist-dark font-mono uppercase tracking-widest font-bold">
-            100% NON-LLM ARCHITECTURE
+            DETERMINISTIC-COGNITIVE PIPELINE
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-10 space-y-12">
-        
+
         {/* Top Section: Upload & Status */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
+
           {/* Upload Panel */}
           <div className="lg:col-span-1">
             <div className="brutalist-panel p-8 h-full flex flex-col">
@@ -164,11 +224,10 @@ function App() {
                 <FileText className="text-brutalist-orange" size={24} strokeWidth={3} />
                 Upload Results PDF
               </h2>
-              
-              <div 
-                className={`flex-1 border-4 border-dashed border-brutalist-dark rounded-none flex flex-col items-center justify-center p-8 transition-all duration-300 ${
-                  isDragging ? 'bg-brutalist-orange/20' : 'bg-white hover:bg-stone-50'
-                }`}
+
+              <div
+                className={`flex-1 border-4 border-dashed border-brutalist-dark rounded-none flex flex-col items-center justify-center p-8 transition-all duration-300 ${isDragging ? 'bg-brutalist-orange/20' : 'bg-white hover:bg-stone-50'
+                  }`}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
@@ -187,10 +246,10 @@ function App() {
                   </div>
                 )}
               </div>
-              
-              {error && <div className="mt-4 text-brutalist-orange font-bold text-sm flex items-center gap-2 uppercase tracking-wide border-2 border-brutalist-orange p-2"><AlertTriangle size={20}/> {error}</div>}
-              
-              <button 
+
+              {error && <div className="mt-4 text-brutalist-orange font-bold text-sm flex items-center gap-2 uppercase tracking-wide border-2 border-brutalist-orange p-2"><AlertTriangle size={20} /> {error}</div>}
+
+              <button
                 onClick={uploadFile}
                 disabled={!file || (statusData && !['FAILED', 'COMPLETED'].includes(statusData.status))}
                 className="mt-6 w-full py-4 px-4 brutalist-button disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-[4px_4px_0px_0px_#1A1A1A]"
@@ -219,7 +278,7 @@ function App() {
                     {statusData.error_message}
                   </div>
                 )}
-                
+
                 <div className="space-y-3">
                   {[
                     { id: 'UPLOADED', label: 'Agent 1: Ingestion' },
@@ -237,63 +296,81 @@ function App() {
                     const currentStatus = statusData?.status || 'WAITING_FOR_UPLOAD';
                     const isFailed = currentStatus === 'FAILED';
                     const currentIndex = arr.findIndex(s => s.id === currentStatus);
-                    
+
                     let state = 'waiting';
                     // Try to guess failed stage from error message if possible
                     let guessedFailedIndex = -1;
                     if (isFailed && statusData?.error_message) {
-                        const err = statusData.error_message.toLowerCase();
-                        if (err.includes('ingest') || err.includes('upload')) guessedFailedIndex = 0;
-                        else if (err.includes('pdf_type') || err.includes('agent 2')) guessedFailedIndex = 1;
-                        else if (err.includes('ocr') || err.includes('agent 3')) guessedFailedIndex = 2;
-                        else if (err.includes('classif') || err.includes('agent 4')) guessedFailedIndex = 3;
-                        else if (err.includes('table') || err.includes('agent 5') || err.includes('agent5')) guessedFailedIndex = 4;
-                        else if (err.includes('normaliz') || err.includes('agent 6')) guessedFailedIndex = 5;
-                        else if (err.includes('analys') || err.includes('agent 7')) guessedFailedIndex = 6;
+                      const err = statusData.error_message.toLowerCase();
+                      if (err.includes('ingest') || err.includes('upload')) guessedFailedIndex = 0;
+                      else if (err.includes('pdf_type') || err.includes('agent 2')) guessedFailedIndex = 1;
+                      else if (err.includes('ocr') || err.includes('agent 3')) guessedFailedIndex = 2;
+                      else if (err.includes('classif') || err.includes('agent 4')) guessedFailedIndex = 3;
+                      else if (err.includes('table') || err.includes('agent 5') || err.includes('agent5')) guessedFailedIndex = 4;
+                      else if (err.includes('normaliz') || err.includes('agent 6')) guessedFailedIndex = 5;
+                      else if (err.includes('analys') || err.includes('agent 7')) guessedFailedIndex = 6;
                     }
-                    
+
                     if (isFailed) {
-                        if (currentIndex !== -1) {
-                            if (idx < currentIndex) state = 'completed';
-                            else if (idx === currentIndex) state = 'failed';
-                            else state = 'aborted';
-                        } else if (guessedFailedIndex !== -1) {
-                            if (idx < guessedFailedIndex) state = 'completed';
-                            else if (idx === guessedFailedIndex) state = 'failed';
-                            else state = 'aborted';
-                        } else {
-                            state = 'aborted'; // If we don't know, just gray them out
-                        }
+                      if (currentIndex !== -1) {
+                        if (idx < currentIndex) state = 'completed';
+                        else if (idx === currentIndex) state = 'failed';
+                        else state = 'aborted';
+                      } else if (guessedFailedIndex !== -1) {
+                        if (idx < guessedFailedIndex) state = 'completed';
+                        else if (idx === guessedFailedIndex) state = 'failed';
+                        else state = 'aborted';
+                      } else {
+                        state = 'aborted'; // If we don't know, just gray them out
+                      }
                     } else if (currentStatus === 'COMPLETED') {
-                        state = 'completed';
+                      state = 'completed';
                     } else if (currentIndex > idx) {
-                        state = 'completed';
+                      state = 'completed';
                     } else if (currentIndex === idx) {
-                        state = 'running';
+                      state = 'running';
                     }
 
                     if (state === 'waiting' && currentStatus !== 'WAITING_FOR_UPLOAD') return null; // hide future steps to keep it clean, or show them grayed out
 
                     return (
-                      <div key={step.id} className="flex items-center gap-4">
-                        <div className={`w-5 h-5 border-2 border-brutalist-dark flex items-center justify-center font-black text-sm ${
-                          state === 'completed' ? 'bg-white text-brutalist-dark' : 
-                          state === 'running' ? 'bg-brutalist-orange text-brutalist-dark' : 
-                          state === 'failed' ? 'bg-brutalist-orange text-white' : 
-                          'bg-transparent text-transparent'
-                        }`}>
-                          {state === 'completed' && '✅'}
-                          {state === 'running' && '>'}
-                          {state === 'failed' && '!'}
+                      <div key={step.id} className="flex flex-col gap-2">
+                        <div className="flex items-center gap-4">
+                          <div className={`w-5 h-5 border-2 border-brutalist-dark flex items-center justify-center font-black text-sm ${state === 'completed' ? 'bg-white text-brutalist-dark' :
+                            state === 'running' ? 'bg-brutalist-orange text-brutalist-dark' :
+                              state === 'failed' ? 'bg-brutalist-orange text-white' :
+                                'bg-transparent text-transparent'
+                            }`}>
+                            {state === 'completed' && '✅'}
+                            {state === 'running' && '>'}
+                            {state === 'failed' && '!'}
+                          </div>
+                          <span className={`uppercase tracking-wider text-xs font-bold ${state === 'completed' ? 'text-brutalist-dark' :
+                            state === 'running' ? 'text-brutalist-orange text-sm' :
+                              state === 'failed' ? 'text-brutalist-orange line-through decoration-2' :
+                                'text-brutalist-dark/40'
+                            }`}>
+                            {step.label}
+                          </span>
                         </div>
-                        <span className={`uppercase tracking-wider text-xs font-bold ${
-                          state === 'completed' ? 'text-brutalist-dark' : 
-                          state === 'running' ? 'text-brutalist-orange text-sm' : 
-                          state === 'failed' ? 'text-brutalist-orange line-through decoration-2' : 
-                          'text-brutalist-dark/40'
-                        }`}>
-                          {step.label}
-                        </span>
+
+                        {/* Inline Agent 5 Loader */}
+                        {step.id === 'TABLE_EXTRACTION' && state === 'running' && (
+                          <div className="ml-9 p-3 border-2 border-brutalist-dark bg-stone-50 font-mono text-[10px] sm:text-xs max-w-sm">
+                            <div className="flex justify-between mb-2">
+                              <span className="font-bold">INFERENCE ACTIVE</span>
+                              <span>{loadingProgress}%</span>
+                            </div>
+                            <div className="w-full h-3 border-2 border-brutalist-dark bg-white relative overflow-hidden mb-2">
+                              <div className="absolute top-0 left-0 h-full bg-brutalist-orange transition-all duration-300" style={{ width: `${loadingProgress}%` }}>
+                                <div className="w-full h-full opacity-20 bg-[repeating-linear-gradient(45deg,transparent,transparent_5px,#000_5px,#000_10px)]"></div>
+                              </div>
+                            </div>
+                            <div className="text-brutalist-green font-bold truncate">
+                              {'>'} {activePhaseText || "INITIALIZING..."}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -313,12 +390,12 @@ function App() {
               {statusData?.analysis_results && (
                 <div className="grid grid-cols-3 gap-8 mt-6">
                   {[
-                    { label: 'Rev QoQ', key: 'qoq_growth', icon: <TrendingUp size={14}/> },
-                    { label: 'Rev YoY', key: 'yoy_growth', icon: <TrendingUp size={14}/> },
-                    { label: 'Net Margin', key: 'net_margin', icon: <DollarSign size={14}/> },
-                    { label: 'PAT QoQ', key: 'pat_qoq', icon: <Activity size={14}/> },
-                    { label: 'PAT YoY', key: 'pat_yoy', icon: <Activity size={14}/> },
-                    { label: 'EBITDA Margin', key: 'ebitda_margin', icon: <DollarSign size={14}/> },
+                    { label: 'Rev QoQ', key: 'qoq_growth', icon: <TrendingUp size={14} /> },
+                    { label: 'Rev YoY', key: 'yoy_growth', icon: <TrendingUp size={14} /> },
+                    { label: 'Net Margin', key: 'net_margin', icon: <DollarSign size={14} /> },
+                    { label: 'PAT QoQ', key: 'pat_qoq', icon: <Activity size={14} /> },
+                    { label: 'PAT YoY', key: 'pat_yoy', icon: <Activity size={14} /> },
+                    { label: 'EBITDA Margin', key: 'ebitda_margin', icon: <DollarSign size={14} /> },
                   ].map(({ label, key, icon }) => {
                     const val = statusData.analysis_results[key];
                     const isNull = val === null || val === undefined;
@@ -342,7 +419,7 @@ function App() {
         {/* Bottom Section: Analytics & Summaries */}
         {statusData?.status === 'COMPLETED' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            
+
             {/* Chart Area — 3 focused financial charts */}
             <div className="brutalist-panel p-8 space-y-8">
 
@@ -359,13 +436,13 @@ function App() {
                       }))
                     }>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1A1A1A" vertical={false} />
-                      <XAxis dataKey="name" stroke="#1A1A1A" tick={{fill: '#1A1A1A', fontSize: 12, fontWeight: 'bold', fontFamily: 'monospace'}} />
-                      <YAxis stroke="#1A1A1A" tick={{fill: '#1A1A1A', fontSize: 11, fontWeight: 'bold', fontFamily: 'monospace'}} width={75}
-                        tickFormatter={v => `₹${(v/1000).toFixed(1)}k`} />
+                      <XAxis dataKey="name" stroke="#1A1A1A" tick={{ fill: '#1A1A1A', fontSize: 12, fontWeight: 'bold', fontFamily: 'monospace' }} />
+                      <YAxis stroke="#1A1A1A" tick={{ fill: '#1A1A1A', fontSize: 11, fontWeight: 'bold', fontFamily: 'monospace' }} width={75}
+                        tickFormatter={v => `₹${(v / 1000).toFixed(1)}k`} />
                       <Tooltip contentStyle={{ backgroundColor: '#fff', borderColor: '#1A1A1A', borderWidth: '4px', borderRadius: '0' }}
                         itemStyle={{ color: '#1A1A1A', fontWeight: 'bold' }} formatter={v => [`₹${v.toLocaleString()} cr`, 'Total Income']} />
                       <Line type="monotone" dataKey="Income" stroke="#D95A2B" strokeWidth={4}
-                        dot={{r: 6, fill: '#D95A2B', strokeWidth: 2}} activeDot={{r: 8}} />
+                        dot={{ r: 6, fill: '#D95A2B', strokeWidth: 2 }} activeDot={{ r: 8 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -384,13 +461,13 @@ function App() {
                       }))
                     }>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1A1A1A" vertical={false} />
-                      <XAxis dataKey="name" stroke="#1A1A1A" tick={{fill: '#1A1A1A', fontSize: 12, fontWeight: 'bold', fontFamily: 'monospace'}} />
-                      <YAxis stroke="#1A1A1A" tick={{fill: '#1A1A1A', fontSize: 11, fontWeight: 'bold', fontFamily: 'monospace'}} width={75}
-                        tickFormatter={v => `₹${(v/1000).toFixed(1)}k`} />
+                      <XAxis dataKey="name" stroke="#1A1A1A" tick={{ fill: '#1A1A1A', fontSize: 12, fontWeight: 'bold', fontFamily: 'monospace' }} />
+                      <YAxis stroke="#1A1A1A" tick={{ fill: '#1A1A1A', fontSize: 11, fontWeight: 'bold', fontFamily: 'monospace' }} width={75}
+                        tickFormatter={v => `₹${(v / 1000).toFixed(1)}k`} />
                       <Tooltip contentStyle={{ backgroundColor: '#fff', borderColor: '#1A1A1A', borderWidth: '4px', borderRadius: '0' }}
                         itemStyle={{ color: '#1A1A1A', fontWeight: 'bold' }} formatter={v => [`₹${v.toLocaleString()} cr`, 'Net Profit']} />
                       <Line type="monotone" dataKey="PAT" stroke="#2E6F40" strokeWidth={4}
-                        dot={{r: 6, fill: '#2E6F40', strokeWidth: 2}} activeDot={{r: 8}} />
+                        dot={{ r: 6, fill: '#2E6F40', strokeWidth: 2 }} activeDot={{ r: 8 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -405,16 +482,16 @@ function App() {
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={statusData.metadata.charts_data.margin_trend}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#1A1A1A" vertical={false} />
-                        <XAxis dataKey="name" stroke="#1A1A1A" tick={{fill: '#1A1A1A', fontSize: 12, fontWeight: 'bold', fontFamily: 'monospace'}} />
-                        <YAxis stroke="#1A1A1A" tick={{fill: '#1A1A1A', fontSize: 11, fontWeight: 'bold', fontFamily: 'monospace'}} width={45}
+                        <XAxis dataKey="name" stroke="#1A1A1A" tick={{ fill: '#1A1A1A', fontSize: 12, fontWeight: 'bold', fontFamily: 'monospace' }} />
+                        <YAxis stroke="#1A1A1A" tick={{ fill: '#1A1A1A', fontSize: 11, fontWeight: 'bold', fontFamily: 'monospace' }} width={45}
                           tickFormatter={v => `${v}%`} />
                         <Tooltip contentStyle={{ backgroundColor: '#fff', borderColor: '#1A1A1A', borderWidth: '4px', borderRadius: '0' }}
                           itemStyle={{ color: '#1A1A1A', fontWeight: 'bold' }} formatter={v => [`${v}%`, '']} />
-                        <Legend wrapperStyle={{color: '#1A1A1A', fontSize: '12px', fontWeight: 'bold', fontFamily: 'monospace'}} />
+                        <Legend wrapperStyle={{ color: '#1A1A1A', fontSize: '12px', fontWeight: 'bold', fontFamily: 'monospace' }} />
                         <Line type="monotone" dataKey="Net Margin" stroke="#2E6F40" strokeWidth={3}
-                          dot={{r: 5}} activeDot={{r: 7}} connectNulls />
+                          dot={{ r: 5 }} activeDot={{ r: 7 }} connectNulls />
                         <Line type="monotone" dataKey="EBITDA Margin" stroke="#D95A2B" strokeWidth={3}
-                          strokeDasharray="5 5" dot={{r: 5}} activeDot={{r: 7}} connectNulls />
+                          strokeDasharray="5 5" dot={{ r: 5 }} activeDot={{ r: 7 }} connectNulls />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
@@ -432,7 +509,7 @@ function App() {
                     <h4 className="text-sm font-black text-brutalist-dark mb-2 uppercase tracking-widest bg-brutalist-orange text-white inline-block px-2 py-1">Executive Overview</h4>
                     <p className="text-brutalist-dark font-medium leading-relaxed">{statusData.nlp_summary.executive_summary}</p>
                   </div>
-                  
+
                   <div className="p-4 border-4 border-brutalist-dark bg-white shadow-[4px_4px_0px_0px_#1A1A1A]">
                     <h4 className="text-sm font-black text-brutalist-dark mb-2 uppercase tracking-widest bg-brutalist-green text-white inline-block px-2 py-1">Retail Investor Context</h4>
                     <p className="text-brutalist-dark font-medium leading-relaxed">{statusData.nlp_summary.investor_explanation}</p>
@@ -473,12 +550,12 @@ function App() {
         {statusData?.status === 'COMPLETED' && statusData?.analysis_results && (
           <div className="brutalist-panel p-8 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-150">
             <h3 className="text-xl font-black uppercase tracking-tight text-brutalist-dark mb-6 border-b-4 border-brutalist-dark pb-4">Balance Sheet Profile</h3>
-            
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Column A: Solvency & Expansion Risk */}
               <div className="bg-[#F2EBE3] border-4 border-brutalist-dark p-6 shadow-[4px_4px_0px_0px_#1A1A1A]">
                 <h4 className="text-sm font-black text-brutalist-dark mb-4 uppercase tracking-widest bg-brutalist-dark text-white inline-block px-3 py-1">Solvency & Expansion Risk</h4>
-                
+
                 <div className="space-y-6">
                   <div>
                     <div className="text-brutalist-dark text-xs font-bold font-mono uppercase tracking-widest mb-1 group relative cursor-help flex w-max items-center">
@@ -492,12 +569,12 @@ function App() {
                     </div>
                     {statusData.analysis_results.total_borrowings_cr_prev != null && (
                       <div className="text-xs text-stone-500 uppercase tracking-wider mt-1 font-mono font-bold">
-                        vs. ₹{Number(statusData.analysis_results.total_borrowings_cr_prev).toFixed(2)} cr (LY) 
+                        vs. ₹{Number(statusData.analysis_results.total_borrowings_cr_prev).toFixed(2)} cr (LY)
                         {statusData.analysis_results.total_borrowings_cr < statusData.analysis_results.total_borrowings_cr_prev ? ' [↓ Deleveraging]' : ' [↑ Leveraging]'}
                       </div>
                     )}
                   </div>
-                  
+
                   <div>
                     <div className="text-brutalist-dark text-xs font-bold font-mono uppercase tracking-widest mb-1 group relative cursor-help flex w-max items-center">
                       Net Debt (Debt Minus Cash)
@@ -526,7 +603,7 @@ function App() {
                       </div>
                     )}
                     <p className="text-xs font-medium text-brutalist-dark/70 uppercase tracking-wider">
-                      {statusData.analysis_results.cwip_cr_prev != null 
+                      {statusData.analysis_results.cwip_cr_prev != null
                         ? (statusData.analysis_results.cwip_cr < statusData.analysis_results.cwip_cr_prev ? 'Status: Assets Entering Production Phase' : 'Status: Factory/Capacity Expansion Ongoing')
                         : 'Asset Deployment Health'}
                     </p>
@@ -537,7 +614,7 @@ function App() {
               {/* Column B: Liquidity & Efficiency Profile */}
               <div className="bg-[#F2EBE3] border-4 border-brutalist-dark p-6 shadow-[4px_4px_0px_0px_#1A1A1A]">
                 <h4 className="text-sm font-black text-brutalist-dark mb-4 uppercase tracking-widest bg-brutalist-dark text-white inline-block px-3 py-1">Liquidity & Efficiency Profile</h4>
-                
+
                 <div className="space-y-6">
                   <div>
                     <div className="flex items-center justify-between mb-1">
@@ -562,7 +639,7 @@ function App() {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="pt-4 border-t-2 border-brutalist-dark border-dashed">
                     <div className="text-brutalist-dark text-xs font-bold font-mono uppercase tracking-widest mb-1">Trade Receivables</div>
                     <div className="text-2xl font-black tracking-tighter text-brutalist-dark">
@@ -593,7 +670,7 @@ function App() {
             {/* Cash Conversion Speed Panel */}
             <div className="mt-8 bg-[#F2EBE3] border-4 border-brutalist-dark p-6 shadow-[4px_4px_0px_0px_#1A1A1A]">
               <h4 className="text-lg font-black text-brutalist-dark mb-6 uppercase tracking-widest border-b-4 border-brutalist-dark pb-2">Operational Cash Conversion Speed</h4>
-              
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-6">
                 <div>
                   <div className="text-brutalist-dark text-xs font-bold font-mono uppercase tracking-widest mb-1 group relative cursor-help flex w-max items-center">
@@ -612,7 +689,7 @@ function App() {
                     </div>
                   )}
                 </div>
-                
+
                 <div>
                   <div className="text-brutalist-dark text-xs font-bold font-mono uppercase tracking-widest mb-1 group relative cursor-help flex w-max items-center">
                     Debtor Days
@@ -662,7 +739,7 @@ function App() {
         {statusData?.status === 'COMPLETED' && statusData?.analysis_results && (
           <div className="brutalist-panel p-8 mt-8 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
             <h3 className="text-xl font-black uppercase tracking-tight text-brutalist-dark mb-6 border-b-4 border-brutalist-dark pb-4">Statement of Cash Flows</h3>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               {/* Section A: OCF */}
               <div className="bg-white border-4 border-brutalist-dark p-5 shadow-[4px_4px_0px_0px_#1A1A1A] flex flex-col justify-between">
@@ -765,7 +842,7 @@ function App() {
               <div className="mt-6 pt-4 border-t-4 border-brutalist-dark">
                 <p className="text-brutalist-dark font-black text-sm uppercase tracking-widest leading-relaxed">
                   {statusData.analysis_results.free_cash_flow_cr != null ? (
-                    statusData.analysis_results.free_cash_flow_cr > 0 
+                    statusData.analysis_results.free_cash_flow_cr > 0
                       ? 'Verdict: Core operations comfortably generate real cash surplus after supporting expansion needs.'
                       : 'Verdict: Heavy reinvestment cycle or operational cash gap requiring external financing fallback.'
                   ) : 'Verdict: Insufficient data to calculate Free Cash Flow.'}
