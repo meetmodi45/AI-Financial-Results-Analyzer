@@ -4,14 +4,20 @@
 
 @layer base {
   body {
-    @apply bg-fintech-dark text-slate-200 antialiased;
+    background-color: #F2EBE3;
+    color: #1A1A1A;
+    @apply antialiased;
   }
 }
 
-.glass-panel {
-  @apply bg-fintech-card bg-opacity-80 backdrop-blur-md border border-slate-700 rounded-xl shadow-xl;
+.brutalist-panel {
+  @apply bg-[#F2EBE3] border-2 border-[#1A1A1A] rounded-none shadow-[4px_4px_0px_0px_#1A1A1A];
 }
 
-.metric-card {
-  @apply bg-fintech-card rounded-lg p-6 border border-slate-700 hover:border-slate-500 transition-colors duration-300;
+.brutalist-button {
+  @apply bg-[#1A1A1A] text-white font-bold uppercase tracking-widest border-2 border-[#1A1A1A] rounded-none shadow-[4px_4px_0px_0px_#1A1A1A] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_#1A1A1A] transition-all;
+}
+
+.brutalist-card {
+  @apply bg-[#F2EBE3] border-2 border-[#1A1A1A] rounded-none shadow-[4px_4px_0px_0px_#1A1A1A];
 }

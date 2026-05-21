@@ -8,13 +8,11 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from celery.utils.log import get_task_logger
-from app.core.celery_app import celery_app
+import logging
 from app.core.db import SessionLocal
 from app.models.document import Document, ProcessingStatus
-from app.agents.agent_6_normalization import process_normalization
 
-logger = get_task_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 # ==========================================================
@@ -463,8 +461,7 @@ def find_pl_page(extracted_text: dict):
 # CELERY TASK — CALLED BY AGENT 4
 # ==========================================================
 
-@celery_app.task(bind=True)
-def process_tables(self, document_id: str):
+def process_tables(document_id: str):
     db = SessionLocal()
     doc_record = db.query(Document).filter(Document.id == document_id).first()
     if not doc_record:
@@ -483,7 +480,7 @@ def process_tables(self, document_id: str):
         logger.info(f"[Agent5] Final extracted: {financial_data}")
         doc_record.financial_data = financial_data
         db.commit()
-        process_normalization.delay(document_id)
+        logger.info(f"Agent 5 (Table Extraction) completed for {document_id}")
 
     except Exception as e:
         logger.error(f"[Agent5] Error: {e}", exc_info=True)

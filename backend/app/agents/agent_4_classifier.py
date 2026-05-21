@@ -1,12 +1,10 @@
-from celery.utils.log import get_task_logger
-from app.core.celery_app import celery_app
+import logging
 from app.core.db import SessionLocal
 from app.models.document import Document, ProcessingStatus
-from app.agents.agent_5_table_extraction import process_tables
 import joblib
 import re
 
-logger = get_task_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # Keyword sets for rule-based fallback classification
 CATEGORY_KEYWORDS = {
@@ -17,8 +15,7 @@ CATEGORY_KEYWORDS = {
     'Financial Statement': ['balance sheet', 'profit and loss', 'income statement', 'cash flow statement'],
 }
 
-@celery_app.task(bind=True)
-def classify_document(self, document_id: str):
+def classify_document(document_id: str):
     db = SessionLocal()
     doc_record = db.query(Document).filter(Document.id == document_id).first()
     if not doc_record: return
@@ -55,7 +52,7 @@ def classify_document(self, document_id: str):
         doc_record.metadata_json = metadata
         db.commit()
         logger.info(f"[Agent 4] Document classified as '{category}' for doc_id={document_id}")
-        process_tables.delay(document_id)
+        logger.info(f"Agent 4 (Classification) completed for {document_id}")
     except Exception as e:
         logger.error(f"[Agent 4] Error: {e}")
         doc_record.processing_status = ProcessingStatus.FAILED

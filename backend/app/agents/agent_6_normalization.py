@@ -1,13 +1,10 @@
-from celery.utils.log import get_task_logger
-from app.core.celery_app import celery_app
+import logging
 from app.core.db import SessionLocal
 from app.models.document import Document, ProcessingStatus
-from app.agents.agent_7_analysis import process_financial_analysis
 
-logger = get_task_logger(__name__)
+logger = logging.getLogger(__name__)
 
-@celery_app.task(bind=True)
-def process_normalization(self, document_id: str):
+def process_normalization(document_id: str):
     db = SessionLocal()
     doc_record = db.query(Document).filter(Document.id == document_id).first()
     if not doc_record: return
@@ -18,7 +15,7 @@ def process_normalization(self, document_id: str):
         data['normalized'] = True
         doc_record.financial_data = data
         db.commit()
-        process_financial_analysis.delay(document_id)
+        logger.info(f"Agent 6 (Normalization) completed for {document_id}")
     except Exception as e:
         doc_record.processing_status = ProcessingStatus.FAILED
         doc_record.error_message = str(e)

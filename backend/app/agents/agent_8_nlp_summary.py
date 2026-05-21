@@ -1,10 +1,8 @@
-from celery.utils.log import get_task_logger
-from app.core.celery_app import celery_app
+import logging
 from app.core.db import SessionLocal
 from app.models.document import Document, ProcessingStatus
-from app.agents.agent_9_verdict import process_verdict
 
-logger = get_task_logger(__name__)
+logger = logging.getLogger(__name__)
 
 def _growth_comment(value: float | None) -> str:
     if value is None: return "data unavailable"
@@ -22,8 +20,7 @@ def _margin_comment(value: float | None) -> str:
     return "thin margins with profitability concerns"
 
 
-@celery_app.task(bind=True)
-def process_nlp_summary(self, document_id: str):
+def process_nlp_summary(document_id: str):
     db = SessionLocal()
     doc_record = db.query(Document).filter(Document.id == document_id).first()
     if not doc_record: return
@@ -106,7 +103,7 @@ def process_nlp_summary(self, document_id: str):
         }
         db.commit()
         logger.info(f"[Agent 8] NLP summary generated for doc_id={document_id}")
-        process_verdict.delay(document_id)
+        logger.info(f"Agent 8 (NLP Summary) completed for {document_id}")
     except Exception as e:
         logger.error(f"[Agent 8] Error: {e}")
         doc_record.processing_status = ProcessingStatus.FAILED

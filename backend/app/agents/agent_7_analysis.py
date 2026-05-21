@@ -1,12 +1,8 @@
-from celery.utils.log import get_task_logger
-from app.core.celery_app import celery_app
+import logging
 from app.core.db import SessionLocal
 from app.models.document import Document, ProcessingStatus
-from app.agents.agent_8_nlp_summary import process_nlp_summary
 
-logger = get_task_logger(__name__)
-
-
+logger = logging.getLogger(__name__)
 def safe_growth(current, previous):
     """Growth % between two values. Returns None if data is missing or prev is 0."""
     if current is None or previous is None or previous == 0:
@@ -21,8 +17,7 @@ def safe_margin(numerator, denominator):
     return round((numerator / denominator) * 100, 2)
 
 
-@celery_app.task(bind=True)
-def process_financial_analysis(self, document_id: str):
+def process_financial_analysis(document_id: str):
     db = SessionLocal()
     doc_record = db.query(Document).filter(Document.id == document_id).first()
     if not doc_record:
@@ -92,7 +87,7 @@ def process_financial_analysis(self, document_id: str):
 
         doc_record.analysis_results = results
         db.commit()
-        process_nlp_summary.delay(document_id)
+        logger.info(f"Agent 7 (Financial Analysis) completed for {document_id}")
 
     except Exception as e:
         logger.error(f"[Agent 7] Error: {e}", exc_info=True)

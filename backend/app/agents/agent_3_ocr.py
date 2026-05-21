@@ -1,14 +1,12 @@
-from celery.utils.log import get_task_logger
-from app.core.celery_app import celery_app
+import logging
 from app.core.db import SessionLocal
 from app.models.document import Document, ProcessingStatus
-from app.agents.agent_4_classifier import classify_document
 import fitz
+import traceback
 
-logger = get_task_logger(__name__)
+logger = logging.getLogger(__name__)
 
-@celery_app.task(bind=True)
-def process_ocr(self, document_id: str):
+def process_ocr(document_id: str):
     db = SessionLocal()
     doc_record = db.query(Document).filter(Document.id == document_id).first()
     if not doc_record: return
@@ -26,10 +24,12 @@ def process_ocr(self, document_id: str):
         doc.close()
         doc_record.extracted_text = extracted_text
         db.commit()
-        classify_document.delay(document_id)
+        logger.info(f"Agent 3 (OCR) completed for {document_id}")
     except Exception as e:
+        logger.error(f"[Agent 3] FAILED for doc_id={document_id}: {e}")
+        logger.error(traceback.format_exc())
         doc_record.processing_status = ProcessingStatus.FAILED
-        doc_record.error_message = str(e)
+        doc_record.error_message = f"[Agent 3 OCR] {str(e)}"
         db.commit()
     finally:
         db.close()

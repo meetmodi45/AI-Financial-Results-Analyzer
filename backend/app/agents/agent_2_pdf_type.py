@@ -1,15 +1,12 @@
-from celery.utils.log import get_task_logger
+import logging
 import fitz  # PyMuPDF
 import os
-from app.core.celery_app import celery_app
 from app.core.db import SessionLocal
 from app.models.document import Document, ProcessingStatus
-from app.agents.agent_3_ocr import process_ocr
 
-logger = get_task_logger(__name__)
+logger = logging.getLogger(__name__)
 
-@celery_app.task(bind=True, max_retries=3)
-def process_pdf_type(self, document_id: str):
+def process_pdf_type(document_id: str):
     db = SessionLocal()
     doc_record = db.query(Document).filter(Document.id == document_id).first()
     if not doc_record: return
@@ -29,7 +26,32 @@ def process_pdf_type(self, document_id: str):
         current_metadata.update({'pdf_type': pdf_type, 'text_pages': text_pages, 'scanned_pages': scanned_pages, 'requires_ocr': pdf_type in ['scanned_pdf', 'hybrid_pdf']})
         doc_record.metadata_json = current_metadata
         db.commit()
-        process_ocr.delay(document_id)
+
+        if pdf_type in ['scanned_pdf', 'hybrid_pdf']:
+            # Cleanup the temporary PDF file to save space
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except Exception as cleanup_err:
+                    logger.error(f"Failed to cleanup file {file_path}: {cleanup_err}")
+            
+            # Raise custom exception to abort the pipeline
+            class ScannedDocumentError(Exception):
+                pass
+            raise ScannedDocumentError("Scanned copy detected. Current model works for standard text robustly only.")
+
+        # Proactively advance the status so the UI knows Agent 2 is complete
+        doc_record.processing_status = ProcessingStatus.OCR_EXTRACTION
+        db.commit()
+
+        try:
+            logger.info(f"Agent 2 (PDF Type) completed for {document_id}")
+        except Exception as queue_err:
+            logger.error(f"Silent queue failure for Agent 3: {queue_err}")
+            doc_record.processing_status = ProcessingStatus.FAILED
+            doc_record.error_message = f"Failed to transition to Agent 3: {str(queue_err)}"
+            db.commit()
+            return
     except Exception as e:
         doc_record.processing_status = ProcessingStatus.FAILED
         doc_record.error_message = str(e)

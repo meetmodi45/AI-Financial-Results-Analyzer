@@ -1,13 +1,11 @@
-from celery.utils.log import get_task_logger
-from app.core.celery_app import celery_app
+import logging
 from app.core.db import SessionLocal
 from app.models.document import Document, ProcessingStatus
 
-logger = get_task_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
-@celery_app.task(bind=True)
-def process_visualization(self, document_id: str):
+def process_visualization(document_id: str):
     db = SessionLocal()
     doc_record = db.query(Document).filter(Document.id == document_id).first()
     if not doc_record: return

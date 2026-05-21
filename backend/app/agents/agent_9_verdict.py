@@ -1,15 +1,12 @@
-from celery.utils.log import get_task_logger
-from app.core.celery_app import celery_app
+import logging
 from app.core.db import SessionLocal
 from app.models.document import Document, ProcessingStatus
-from app.agents.agent_10_visualization import process_visualization
 import joblib
 import pandas as pd
 
-logger = get_task_logger(__name__)
+logger = logging.getLogger(__name__)
 
-@celery_app.task(bind=True)
-def process_verdict(self, document_id: str):
+def process_verdict(document_id: str):
     db = SessionLocal()
     doc_record = db.query(Document).filter(Document.id == document_id).first()
     if not doc_record: return
@@ -27,7 +24,7 @@ def process_verdict(self, document_id: str):
         pred = model.predict(df)[0]
         doc_record.verdict = {'verdict': pred, 'confidence': 0.95}
         db.commit()
-        process_visualization.delay(document_id)
+        logger.info(f"Agent 9 (Verdict) completed for {document_id}")
     except Exception as e:
         doc_record.processing_status = ProcessingStatus.FAILED
         doc_record.error_message = str(e)
