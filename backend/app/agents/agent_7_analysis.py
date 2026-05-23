@@ -63,7 +63,7 @@ def process_financial_analysis(document_id: str):
                     pass
 
             if v is not None and isinstance(v, (int, float)):
-                if k in ['basic_eps_q', 'source_page'] or k.startswith('source_page'):
+                if 'eps' in k or k == 'source_page' or k.startswith('source_page'):
                     fd[k] = v
                 else:
                     fd[k] = v * scale_factor

@@ -43,22 +43,35 @@ def process_visualization(document_id: str):
         fy_labels = [l for l, v in fy_series if v is not None]
         fy_data   = [round(v, 2) for l, v in fy_series if v is not None]
 
-        # ── Margin Trend chart (quarterly Net Margin %, EBITDA Margin %) ─────
-        def qmargin(pat_key, ti_key):
-            p = fd.get(pat_key); t = fd.get(ti_key)
+        # ── Margin Trend chart (quarterly Net Margin %, Operating Margin %) ─────
+        def qmargin(num_key, den_key):
+            p = fd.get(num_key); t = fd.get(den_key)
             if p and t and t != 0: return round((p / t) * 100, 2)
             return None
 
+        def opm(pbe, pbt, ti):
+            t = fd.get(ti)
+            if not t: return None
+            p = fd.get(pbe) or fd.get(pbt)
+            if p: return round((p / t) * 100, 2)
+            return None
+
         margin_series = [
-            {'name': 'Q Mar-25', 'Net Margin': qmargin('pat_q_year_ago', 'total_income_q_year_ago'),
-                                  'EBITDA Margin': qmargin('profit_before_exceptional_q_current', 'total_income_q_year_ago')},
-            {'name': 'Q Dec-25', 'Net Margin': qmargin('pat_q_prev', 'total_income_q_prev'),
-                                  'EBITDA Margin': qmargin('profit_before_exceptional_q_prev', 'total_income_q_prev')},
-            {'name': 'Q Mar-26', 'Net Margin': qmargin('pat_q_current', 'total_income_q_current'),
-                                  'EBITDA Margin': qmargin('profit_before_exceptional_q_current', 'total_income_q_current')},
+            {'name': 'Q Mar-25', 'OPM': None},
+            {'name': 'Q Dec-25', 'OPM': opm('profit_before_exceptional_q_prev', 'profit_before_tax_q_prev', 'total_income_q_prev')},
+            {'name': 'Q Mar-26', 'OPM': opm('profit_before_exceptional_q_current', 'profit_before_tax_q_current', 'total_income_q_current')},
         ]
         # Only keep points where at least one value is not None
         margin_series = [p for p in margin_series if any(v is not None for k, v in p.items() if k != 'name')]
+
+        # ── EPS Trend ────────────────────────────────────────────────────────
+        eps_series = [
+            ('Q Mar-25', fd.get('basic_eps_q_year_ago')),
+            ('Q Dec-25', fd.get('basic_eps_q_prev')),
+            ('Q Mar-26', fd.get('basic_eps_q')),
+        ]
+        eps_labels = [l for l, v in eps_series if v is not None]
+        eps_data   = [round(v, 2) for l, v in eps_series if v is not None]
 
         growth_map = {
             'Income QoQ %':  res.get('qoq_growth'),
@@ -82,7 +95,11 @@ def process_visualization(document_id: str):
                 'labels': fy_labels or ['No Data'],
                 'datasets': [{'label': 'Total Income FY (₹ cr)', 'data': fy_data or [0]}]
             },
-            'margin_trend': margin_series,   # list of {name, Net Margin, EBITDA Margin}
+            'margin_trend': margin_series,
+            'eps_trend': {
+                'labels': eps_labels or ['No Data'],
+                'datasets': [{'label': 'Basic EPS (₹)', 'data': eps_data or [0]}]
+            },
             'growth_metrics': {
                 'labels': growth_labels or ['No Data'],
                 'datasets': [{'label': '%', 'data': growth_data or [0]}]

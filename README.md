@@ -48,6 +48,69 @@ A second flow lets you upload **earnings-call transcripts** and ask questions vi
 
 ---
 
+## Screenshots
+
+<details open>
+<summary><b>📊 Financial Results Dashboard</b></summary>
+<br>
+
+<p align="center">
+  <img src="./docs/Results-Dashboard.png" alt="Results Dashboard" width="800"/>
+  <br>
+  <em>The main dashboard showing the pipeline progress and high-level extracted metrics.</em>
+</p>
+
+<p align="center">
+  <img src="./docs/PnL.png" alt="Profit and Loss & ML Verdict" width="800"/>
+  <br>
+  <em>Profit & Loss metrics with QoQ/YoY growth trends, interactive visualizations, and the ML-driven Verdict badge.</em>
+</p>
+
+<p align="center">
+  <img src="./docs/Verdicts.png" alt="AI LLM Summary" width="800"/>
+  <br>
+  <em>The NLP executive summary, highlights, and risks generated for investors.</em>
+</p>
+
+<p align="center">
+  <img src="./docs/Balance-sheet.png" alt="Balance Sheet" width="800"/>
+  <br>
+  <em>Balance Sheet breakdown displaying current ratio, net debt, and working capital days.</em>
+</p>
+
+<p align="center">
+  <img src="./docs/cashflows.png" alt="Cash Flows" width="800"/>
+  <br>
+  <em>Detailed Cash Flow statement analysis and Free Cash Flow computation.</em>
+</p>
+</details>
+
+<details open>
+<summary><b>💬 Earnings Call & Global Assistant</b></summary>
+<br>
+
+<p align="center">
+  <img src="./docs/concall-dashboard.png" alt="Concall Dashboard" width="800"/>
+  <br>
+  <em>The Earnings Call upload and processing dashboard, powered by Pinecone Vector DB.</em>
+</p>
+
+<p align="center">
+  <img src="./docs/concall-chat-ui.png" alt="Concall Chat" width="400"/>
+  <img src="./docs/concall-chat-ui-2.png" alt="Concall Chat 2" width="400"/>
+  <br>
+  <em>Retrieval-Augmented Generation (RAG) chat grounded exactly in the transcript text.</em>
+</p>
+
+<p align="center">
+  <img src="./docs/global-ai-assistant.png" alt="Global Assistant" width="800"/>
+  <br>
+  <em>A floating global AI assistant available on any page to help explain complex financial terminology.</em>
+</p>
+</details>
+
+---
+
 ## What you can do
 
 | Module | Description |

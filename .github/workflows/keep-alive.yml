@@ -1,0 +1,16 @@
+name: Keep Render Backend Alive
+
+on:
+  schedule:
+    # Runs every 14 minutes
+    - cron: "*/14 * * * *"
+  workflow_dispatch: # Allows you to manually trigger it from GitHub UI if needed
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Backend API
+        run: |
+          # Replace this URL with your actual Render backend URL!
+          curl -f https://your-backend.onrender.com/ || echo "Failed to ping, but workflow will continue"
