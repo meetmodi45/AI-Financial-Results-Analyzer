@@ -53,6 +53,15 @@ def process_financial_analysis(document_id: str):
 
         fd = {}
         for k, v in raw_fd.items():
+            if v is not None and isinstance(v, str):
+                clean_v = v.replace(',', '').replace(' ', '').strip()
+                if clean_v.startswith('(') and clean_v.endswith(')'):
+                    clean_v = '-' + clean_v[1:-1]
+                try:
+                    v = float(clean_v)
+                except ValueError:
+                    pass
+
             if v is not None and isinstance(v, (int, float)):
                 if k in ['basic_eps_q', 'source_page'] or k.startswith('source_page'):
                     fd[k] = v
