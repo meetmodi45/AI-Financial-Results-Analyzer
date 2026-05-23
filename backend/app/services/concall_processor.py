@@ -6,7 +6,7 @@ import fitz  # PyMuPDF
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_pinecone import PineconeVectorStore
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_pinecone import PineconeEmbeddings
 import os
 
 try:
@@ -73,10 +73,9 @@ def process_concall_document(document_id: str, file_bytes: bytes, filename: str)
         api_key = os.getenv("PINECONE_API_KEY")
         index_name = os.getenv("PINECONE_INDEX_NAME", "financial-reports-index")
 
-        embeddings = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2",
-            model_kwargs={'device': 'cpu'},
-            encode_kwargs={'normalize_embeddings': True}
+        embeddings = PineconeEmbeddings(
+            model="multilingual-e5-large",
+            pinecone_api_key=api_key
         )
 
         # 4. Push to Pinecone
