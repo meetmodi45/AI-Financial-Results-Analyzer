@@ -126,8 +126,8 @@ def process_tables(document_id: str):
             result = chain.invoke({"text": compiled_text})
         except Exception as e:
             if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                logger.error("[Agent5] Gemini API Rate Limit Hit (429). Failing gracefully.")
-                raise ValueError("Gemini API Limit Exhausted. Try again after some time")
+                logger.error("[Agent5] Groq API Rate Limit Hit (429). Failing gracefully.")
+                raise ValueError("Groq API Limit Exhausted. Try again after some time")
             else:
                 raise e
 
@@ -137,9 +137,6 @@ def process_tables(document_id: str):
         
         logger.info(f"[Agent5] Final extracted: {financial_data}")
         doc_record.financial_data = financial_data
-
-
-
         db.commit()
         logger.info(f"Agent 5 (Table Extraction) completed for {document_id}")
 

@@ -32,7 +32,7 @@ def process_financial_analysis(document_id: str):
         unit = raw_fd.get('reported_currency_unit') or ""
         unit = unit.lower()
         
-        # Fallback: If Gemini failed to extract the unit natively, scan the raw text!
+        # Fallback: If unit not extracted natively, scan the raw text
         if not unit:
             extracted_text_dict = doc_record.extracted_text or {}
             full_text = " ".join(extracted_text_dict.values()).lower()
@@ -60,19 +60,6 @@ def process_financial_analysis(document_id: str):
                     fd[k] = v * scale_factor
             else:
                 fd[k] = v
-        # ── Total Income (PRIMARY metric — includes Other Income) ─────────────
-        # Column layout:  0=Q_curr  1=Q_prev  2=Q_yoy  3=FY_curr  4=FY_prev
-        ti_q_curr  = fd.get('total_income_q_current')   # 31.03.2026 quarter
-        ti_q_prev  = fd.get('total_income_q_prev')      # 31.12.2025 quarter
-        ti_fy_curr = fd.get('total_income_fy_current')  # FY 31.03.2026
-        ti_fy_prev = fd.get('total_income_fy_prev')     # FY 31.03.2025  ← YoY base
-
-        # ── Net Profit (PAT) ─────────────────────────────────────────────────
-        pat_q_curr  = fd.get('pat_q_current')    # Q 31.03.2026
-        pat_q_prev  = fd.get('pat_q_prev')       # Q 31.12.2025
-        pat_fy_curr = fd.get('pat_fy_current')   # FY 31.03.2026
-        pat_fy_prev = fd.get('pat_fy_prev')      # FY 31.03.2025
-
 
         # ── Profit & Loss Metrics ─────────────────────────────────────────────
         ti_q_curr = fd.get('total_income_q_current') or 0

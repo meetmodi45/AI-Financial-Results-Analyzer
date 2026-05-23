@@ -60,7 +60,6 @@ def process_visualization(document_id: str):
         # Only keep points where at least one value is not None
         margin_series = [p for p in margin_series if any(v is not None for k, v in p.items() if k != 'name')]
 
-        # ── Growth Metrics (kept for backward compat but simplified) ─────────
         growth_map = {
             'Income QoQ %':  res.get('qoq_growth'),
             'Income YoY %':  res.get('yoy_growth'),

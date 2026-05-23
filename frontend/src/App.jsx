@@ -206,11 +206,6 @@ function App() {
         try {
           const res = await axios.get(`${API_BASE}/concall/status/${concallDocumentId}`);
           setConcallStatusData(res.data);
-          
-          if (res.data.status === 'COMPLETED') {
-            // Optional: route or trigger next UI step here
-            console.log("Concall chunking completed.");
-          }
         } catch (e) {
           console.error("Concall polling failed:", e);
         }
