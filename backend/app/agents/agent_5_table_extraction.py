@@ -112,7 +112,8 @@ def process_tables(document_id: str):
             "Extract all metrics exactly as written on the page face. "
             "DO NOT perform any math scaling, currency normalizations, or multi-period conversions yourself. "
             "If a number is enclosed in brackets like (100.50), extract it natively as a negative float (-100.50). "
-            "Identify and populate the 'reported_currency_unit' field verbatim from the page headers."
+            "Identify and populate the 'reported_currency_unit' field verbatim from the page headers. "
+            "CRITICAL: Output all numerical values as valid JSON numbers. NEVER include commas in numbers (e.g. use 1500.50, NOT 1,500.50)."
         )
 
         prompt = ChatPromptTemplate.from_messages([
