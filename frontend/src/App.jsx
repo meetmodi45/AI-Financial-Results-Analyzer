@@ -4,7 +4,7 @@ import { Activity, FileText, Upload, AlertTriangle, TrendingUp, BarChart3, Datab
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 import GlobalAssistant from './components/GlobalAssistant';
 
-const API_BASE = `http://${window.location.hostname}:8000/api/v1`;
+const API_BASE = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000/api/v1`;
 
 function App() {
   const [file, setFile] = useState(null);

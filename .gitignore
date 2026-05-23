@@ -32,7 +32,6 @@ share/python-wheels/
 
 # Data & Models
 data/uploads/
-backend/app/ml_models/*.joblib
 backend/app/ml_models/*.pkl
 *.db
 *.sqlite3

@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: ai-financial-analyzer-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: financial-analyzer-db
+          property: connectionString
+      - key: REDIS_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: PINECONE_API_KEY
+        sync: false
+      - key: PINECONE_INDEX_NAME
+        value: finance
+      - key: PROJECT_NAME
+        value: AI Financial Results Analyzer
+
+databases:
+  - name: financial-analyzer-db
+    databaseName: financial_analyzer
+    user: financial_analyzer_user
+    plan: free

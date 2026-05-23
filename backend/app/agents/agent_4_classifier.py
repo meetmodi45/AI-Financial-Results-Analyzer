@@ -1,8 +1,11 @@
 import logging
+import os
 from app.core.db import SessionLocal
 from app.models.document import Document, ProcessingStatus
 import joblib
 import re
+
+_MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "ml_models")
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +33,7 @@ def classify_document(document_id: str):
         # Try ML model first
         category = None
         try:
-            model = joblib.load('app/ml_models/doc_classifier.joblib')
+            model = joblib.load(os.path.join(_MODELS_DIR, "doc_classifier.joblib"))
             category = model.predict([full_text])[0]
             logger.info(f"ML model classified document as: {category}")
         except Exception as ml_err:

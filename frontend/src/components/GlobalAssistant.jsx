@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Bot, X, Send, Loader2 } from 'lucide-react';
 
-const API_BASE = `http://${window.location.hostname}:8000/api/v1`;
+const API_BASE = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000/api/v1`;
 
 const GlobalAssistant = () => {
   const [isOpen, setIsOpen] = useState(false);

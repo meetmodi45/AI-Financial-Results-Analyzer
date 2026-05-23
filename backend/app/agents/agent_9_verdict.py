@@ -1,8 +1,11 @@
 import logging
+import os
 from app.core.db import SessionLocal
 from app.models.document import Document, ProcessingStatus
 import joblib
 import pandas as pd
+
+_MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "ml_models")
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +16,7 @@ def process_verdict(document_id: str):
     try:
         doc_record.processing_status = ProcessingStatus.VERDICT_PREDICTION
         db.commit()
-        model = joblib.load('app/ml_models/verdict_classifier.joblib')
+        model = joblib.load(os.path.join(_MODELS_DIR, "verdict_classifier.joblib"))
         res = doc_record.analysis_results or {}
         
         qoq = float(res.get('qoq_growth', 0) or 0)
