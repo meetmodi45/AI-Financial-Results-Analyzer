@@ -391,11 +391,8 @@ function App() {
                     onDrop={handleDrop}
                   >
                     <Upload className={`mb-4 ${isDragging ? 'text-brutalist-orange' : 'text-brutalist-dark'}`} size={40} strokeWidth={2} />
-                    <p className="text-sm text-brutalist-dark font-bold text-center mb-4 uppercase tracking-wider">
-                      Drag and drop Financial Results of any Company, or
-                    </p>
                     <label className="cursor-pointer brutalist-button px-6 py-2 text-sm">
-                      Browse Files
+                      Upload Financial Results PDF here
                       <input type="file" className="hidden" accept="application/pdf" onChange={(e) => handleFileSelection(e.target.files[0])} />
                     </label>
                     {file && (
