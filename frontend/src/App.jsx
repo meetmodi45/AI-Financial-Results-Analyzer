@@ -631,27 +631,52 @@ function App() {
                   {/* Chart 3: Margin % Trend */}
                   {(statusData.metadata?.charts_data?.margin_trend?.length > 0) && (
                     <div>
-                      <h3 className="text-lg font-black tracking-tight uppercase text-brutalist-dark mb-1">Margin Trends <span className="font-mono text-xs font-bold tracking-widest">(%)</span></h3>
-                      <p className="text-brutalist-dark text-xs mb-3 font-mono">Net Margin &amp; EBITDA Margin over quarters</p>
-                      <div className="h-44 border-4 border-brutalist-dark p-2 bg-white">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={statusData.metadata.charts_data.margin_trend}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#1A1A1A" vertical={false} />
-                            <XAxis dataKey="name" stroke="#1A1A1A" tick={{ fill: '#1A1A1A', fontSize: 12, fontWeight: 'bold', fontFamily: 'monospace' }} />
-                            <YAxis stroke="#1A1A1A" tick={{ fill: '#1A1A1A', fontSize: 11, fontWeight: 'bold', fontFamily: 'monospace' }} width={45}
-                              tickFormatter={v => `${v}%`} />
-                            <Tooltip contentStyle={{ backgroundColor: '#fff', borderColor: '#1A1A1A', borderWidth: '4px', borderRadius: '0' }}
-                              itemStyle={{ color: '#1A1A1A', fontWeight: 'bold' }} formatter={v => [`${v}%`, '']} />
-                            <Legend wrapperStyle={{ color: '#1A1A1A', fontSize: '12px', fontWeight: 'bold', fontFamily: 'monospace' }} />
-                            <Line type="monotone" dataKey="Net Margin" stroke="#2E6F40" strokeWidth={3}
-                              dot={{ r: 5 }} activeDot={{ r: 7 }} connectNulls />
-                            <Line type="monotone" dataKey="EBITDA Margin" stroke="#D95A2B" strokeWidth={3}
-                              strokeDasharray="5 5" dot={{ r: 5 }} activeDot={{ r: 7 }} connectNulls />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-                  )}
+                  <h3 className="text-lg font-black tracking-tight uppercase text-brutalist-dark mb-1">Margin Trends <span className="font-mono text-xs font-bold tracking-widest">(%)</span></h3>
+                  <p className="text-brutalist-dark text-xs mb-3 font-mono">OPM (Operating Profit Margin) over quarters</p>
+                  <div className="h-44 border-4 border-brutalist-dark p-2 bg-white">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={statusData.metadata.charts_data.margin_trend}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1A1A1A" vertical={false} />
+                        <XAxis dataKey="name" stroke="#1A1A1A" tick={{ fill: '#1A1A1A', fontSize: 12, fontWeight: 'bold', fontFamily: 'monospace' }} />
+                        <YAxis stroke="#1A1A1A" tick={{ fill: '#1A1A1A', fontSize: 11, fontWeight: 'bold', fontFamily: 'monospace' }} width={45}
+                          tickFormatter={v => `${v}%`} />
+                        <Tooltip contentStyle={{ backgroundColor: '#fff', borderColor: '#1A1A1A', borderWidth: '4px', borderRadius: '0' }}
+                          itemStyle={{ color: '#1A1A1A', fontWeight: 'bold' }} formatter={v => [`${v}%`, '']} />
+                        <Legend wrapperStyle={{ color: '#1A1A1A', fontSize: '12px', fontWeight: 'bold', fontFamily: 'monospace' }} />
+                        <Line type="monotone" dataKey="OPM" stroke="#D95A2B" strokeWidth={4}
+                          dot={{ r: 6, fill: '#D95A2B', strokeWidth: 2 }} activeDot={{ r: 8 }} connectNulls />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+
+              {/* Chart 4: EPS Trend */}
+              {(statusData.metadata?.charts_data?.eps_trend?.labels?.length > 0) && (
+                <div>
+                  <h3 className="text-lg font-black tracking-tight uppercase text-brutalist-dark mb-1">Basic EPS Trend <span className="font-mono text-xs font-bold tracking-widest">(₹)</span></h3>
+                  <p className="text-brutalist-dark text-xs mb-3 font-mono">Earnings Per Share over quarters</p>
+                  <div className="h-44 border-4 border-brutalist-dark p-2 bg-white">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={
+                        (statusData.metadata.charts_data.eps_trend.labels || []).map((label, idx) => ({
+                          name: label,
+                          EPS: statusData.metadata.charts_data.eps_trend.datasets[0].data[idx]
+                        }))
+                      }>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1A1A1A" vertical={false} />
+                        <XAxis dataKey="name" stroke="#1A1A1A" tick={{ fill: '#1A1A1A', fontSize: 12, fontWeight: 'bold', fontFamily: 'monospace' }} />
+                        <YAxis stroke="#1A1A1A" tick={{ fill: '#1A1A1A', fontSize: 11, fontWeight: 'bold', fontFamily: 'monospace' }} width={45}
+                          tickFormatter={v => `₹${v.toFixed(1)}`} />
+                        <Tooltip contentStyle={{ backgroundColor: '#fff', borderColor: '#1A1A1A', borderWidth: '4px', borderRadius: '0' }}
+                          itemStyle={{ color: '#1A1A1A', fontWeight: 'bold' }} formatter={v => [`₹${v}`, 'Basic EPS']} />
+                        <Line type="monotone" dataKey="EPS" stroke="#1A1A1A" strokeWidth={4}
+                          dot={{ r: 6, fill: '#1A1A1A', strokeWidth: 2 }} activeDot={{ r: 8 }} connectNulls />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
 
                 </div>
 
