@@ -1,6 +1,7 @@
 import os
 import uuid
 import logging
+import hashlib
 from fastapi import APIRouter, UploadFile, File, Form, Depends, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -33,20 +34,32 @@ async def upload_and_process_concall(
     quarter = quarter.strip().upper()
     fiscal_year = fiscal_year.strip().upper()
 
+    # Read file entirely into memory first so we can hash it
+    try:
+        file_bytes = await file.read()
+        filename = file.filename or "upload.pdf"
+    except Exception as e:
+        logger.error(f"Failed to read uploaded file {file.filename}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to read uploaded file")
+
+    # Calculate SHA-256 hash of the file contents
+    file_hash = hashlib.sha256(file_bytes).hexdigest()
+
     # --- Deduplication check ---
     # If a successfully processed document already exists for the same
-    # company / sector / quarter / FY, return it immediately — no LLM call,
-    # no Pinecone upsert, no wasted tokens.
+    # company / sector / quarter / FY AND the exact same file content (hash),
+    # return it immediately — no LLM call, no Pinecone upsert.
     existing = db.query(ConcallDocument).filter(
         ConcallDocument.company_name == company_name,
         ConcallDocument.sector == sector,
         ConcallDocument.quarter == quarter,
         ConcallDocument.fiscal_year == fiscal_year,
+        ConcallDocument.file_hash == file_hash,
         ConcallDocument.processed_status == "COMPLETED"
     ).first()
 
     if existing:
-        logger.info(f"Dedup hit: returning existing document {existing.id} for {company_name} {quarter} {fiscal_year}")
+        logger.info(f"Dedup hit: returning existing document {existing.id} for {company_name} {quarter} {fiscal_year} (hash: {file_hash[:8]}...)")
         return {
             "document_id": existing.id,
             "company_name": existing.company_name,
@@ -57,12 +70,8 @@ async def upload_and_process_concall(
     document_id = str(uuid.uuid4())
 
     # Read file entirely into memory — no disk write
-    try:
-        file_bytes = await file.read()
-        filename = file.filename or "upload.pdf"
-    except Exception as e:
-        logger.error(f"Failed to read uploaded file {file.filename}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to read uploaded file")
+    # Read file entirely into memory — no disk write
+    # (Moved above for hashing)
 
     # Write initial tracking record to ConcallDocument
     new_doc = ConcallDocument(
@@ -71,6 +80,7 @@ async def upload_and_process_concall(
         sector=sector,
         quarter=quarter,
         fiscal_year=fiscal_year,
+        file_hash=file_hash,
         processed_status="PENDING"
     )
 

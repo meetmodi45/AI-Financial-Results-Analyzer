@@ -25,6 +25,7 @@ def run_auto_migrations():
         ("concall_documents", "sector",       "ALTER TABLE concall_documents ADD COLUMN sector VARCHAR;"),
         ("concall_documents", "summary_data",  "ALTER TABLE concall_documents ADD COLUMN summary_data JSON;"),
         ("concall_documents", "error_message", "ALTER TABLE concall_documents ADD COLUMN error_message VARCHAR;"),
+        ("concall_documents", "file_hash",     "ALTER TABLE concall_documents ADD COLUMN file_hash VARCHAR;"),
     ]
     with engine.connect() as conn:
         for table, column, sql in migrations:

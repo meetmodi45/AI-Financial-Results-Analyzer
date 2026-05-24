@@ -13,4 +13,5 @@ class ConcallDocument(Base):
     processed_status = Column(String, default="PENDING")
     error_message = Column(String, nullable=True)
     summary_data = Column(JSON, nullable=True)
+    file_hash = Column(String, nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
