@@ -46,14 +46,11 @@ async def upload_and_process_concall(
     file_hash = hashlib.sha256(file_bytes).hexdigest()
 
     # --- Deduplication check ---
-    # If a successfully processed document already exists for the same
-    # company / sector / quarter / FY AND the exact same file content (hash),
-    # return it immediately — no LLM call, no Pinecone upsert.
+    # We now strictly deduplicate by File Hash ONLY.
+    # If a user uploads the exact same PDF but types "Transrail Limited" instead
+    # of "Transrail", we still instantly hit the cache because the binary file
+    # is mathematically identical. This prevents cache misses due to typos.
     existing = db.query(ConcallDocument).filter(
-        ConcallDocument.company_name == company_name,
-        ConcallDocument.sector == sector,
-        ConcallDocument.quarter == quarter,
-        ConcallDocument.fiscal_year == fiscal_year,
         ConcallDocument.file_hash == file_hash,
         ConcallDocument.processed_status == "COMPLETED"
     ).first()
