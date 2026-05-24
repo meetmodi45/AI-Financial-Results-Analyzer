@@ -6,6 +6,42 @@ import GlobalAssistant from './components/GlobalAssistant';
 
 const API_BASE = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000/api/v1`;
 
+// Extracts a human-readable error message from an axios error.
+// Priority: backend detail message → HTTP status meaning → network error → fallback
+function parseApiError(e, fallback = "Something went wrong. Please try again.") {
+  if (!e) return fallback;
+
+  // Backend returned a structured error response
+  const detail = e?.response?.data?.detail || e?.response?.data?.error_message || e?.response?.data?.message;
+  if (detail) return String(detail);
+
+  // Map common HTTP status codes to plain messages
+  const status = e?.response?.status;
+  if (status) {
+    if (status === 400) return "Bad request — check your inputs and try again.";
+    if (status === 401) return "Unauthorized — please check your credentials.";
+    if (status === 403) return "Access denied.";
+    if (status === 404) return "Resource not found on the server.";
+    if (status === 413) return "File is too large. Please upload a smaller PDF.";
+    if (status === 422) return "Invalid data sent — please fill all required fields correctly.";
+    if (status === 429) return "Too many requests. Please wait a moment and try again.";
+    if (status >= 500) return `Server error (${status}) — the backend encountered an issue. Check Render logs.`;
+  }
+
+  // Network-level error (no response received at all)
+  if (e?.code === 'ERR_NETWORK' || e?.message === 'Network Error') {
+    return "Cannot reach the server — check that the backend is deployed and the API URL is correct.";
+  }
+  if (e?.code === 'ECONNABORTED' || e?.code === 'ERR_CANCELED') {
+    return "Request timed out — the server took too long to respond.";
+  }
+
+  // Axios or JS error message as last resort
+  if (e?.message) return e.message;
+
+  return fallback;
+}
+
 function App() {
   const [file, setFile] = useState(null);
   const [documentId, setDocumentId] = useState(null);
@@ -253,7 +289,7 @@ function App() {
       setDocumentId(res.data.document_id);
       setStatusData({ status: res.data.status });
     } catch (e) {
-      setError("Failed to upload document. Ensure backend is running.");
+      setError(parseApiError(e, "Upload failed. Ensure backend is running."));
       console.error(e);
     }
   };
@@ -281,7 +317,7 @@ function App() {
       setConcallDocumentId(res.data.document_id);
       setConcallStatusData({ status: res.data.status });
     } catch (e) {
-      setConcallError("Failed to start Concall ingestion. Ensure backend is running.");
+      setConcallError(parseApiError(e, "Upload failed. Please try again."));
       console.error(e);
     } finally {
       setIsConcallUploading(false);
@@ -306,7 +342,8 @@ function App() {
       setChatMessages(prev => [...prev, aiMsg]);
     } catch (e) {
       console.error(e);
-      setChatMessages(prev => [...prev, { role: "ai", content: "Error: Failed to fetch response." }]);
+      const errMsg = parseApiError(e, "Failed to get a response. Please try again.");
+      setChatMessages(prev => [...prev, { role: "ai", content: `Error: ${errMsg}` }]);
     } finally {
       setIsChatLoading(false);
     }
