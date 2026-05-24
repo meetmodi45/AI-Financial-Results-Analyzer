@@ -18,8 +18,9 @@ function App() {
   // Concall Ingestion States
   const [concallFile, setConcallFile] = useState(null);
   const [concallCompanyName, setConcallCompanyName] = useState("");
-  const [concallQuarter, setConcallQuarter] = useState("");
-  const [concallFiscalYear, setConcallFiscalYear] = useState("");
+  const [concallSector, setConcallSector] = useState("");
+  const [concallQuarter, setConcallQuarter] = useState("Q4");
+  const [concallFiscalYear, setConcallFiscalYear] = useState("FY26");
   const [concallDocumentId, setConcallDocumentId] = useState(null);
   const [concallStatusData, setConcallStatusData] = useState(null);
   const [concallError, setConcallError] = useState(null);
@@ -268,9 +269,10 @@ function App() {
 
     const formData = new FormData();
     formData.append("file", concallFile);
-    formData.append("company_name", "Unknown");
-    formData.append("quarter", "N/A");
-    formData.append("fiscal_year", "N/A");
+    formData.append("company_name", concallCompanyName || "Unknown");
+    formData.append("sector", concallSector || "General Corporate");
+    formData.append("quarter", concallQuarter || "Q4");
+    formData.append("fiscal_year", concallFiscalYear || "FY26");
 
     try {
       const res = await axios.post(`${API_BASE}/concall/upload-and-process`, formData, {
@@ -1055,7 +1057,8 @@ function App() {
             <div className="border-t-4 border-black my-8"></div>
 
             {concallStatusData?.status === 'COMPLETED' ? (
-              <div className="brutalist-panel flex flex-col border-4 border-brutalist-dark shadow-[4px_4px_0px_0px_#1A1A1A] bg-[#FDFBF7] h-[600px] sm:h-[500px]">
+              <div className="space-y-8 animate-in fade-in duration-700">
+                <div className="brutalist-panel flex flex-col border-4 border-brutalist-dark shadow-[4px_4px_0px_0px_#1A1A1A] bg-[#FDFBF7] h-[600px] sm:h-[500px]">
                 <div className="bg-[#1A1A1A] text-white p-3 sm:p-4 font-black uppercase tracking-widest border-b-4 border-brutalist-dark flex justify-between items-center gap-2">
                   <span className="truncate pr-4 text-sm sm:text-base">Chat: {concallFile ? concallFile.name : 'Transcript'}</span>
                   <button onClick={() => { setConcallStatusData(null); setConcallDocumentId(null); setChatMessages([]); setConcallFile(null) }} className="text-[10px] sm:text-xs whitespace-nowrap bg-white text-black px-2 py-1 border-2 border-black hover:bg-[#FF6B6B] hover:text-white transition-colors">[ NEW SESSION ]</button>
@@ -1100,6 +1103,63 @@ function App() {
                   </button>
                 </form>
               </div>
+
+              {concallStatusData.summary_data && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Positive News */}
+                  <div className="border-4 border-brutalist-dark p-6 bg-[#FDFBF7] shadow-[4px_4px_0px_0px_#1A1A1A]">
+                    <h3 className="font-black text-lg text-white bg-[#2E6F40] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Positive Signals</h3>
+                    <ul className="space-y-3">
+                      {(concallStatusData.summary_data.positive || []).map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-3">
+                          <CheckCircle className="text-[#2E6F40] shrink-0 mt-0.5" size={20} strokeWidth={2.5} />
+                          <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Negative News */}
+                  <div className="border-4 border-brutalist-dark p-6 bg-[#FDFBF7] shadow-[4px_4px_0px_0px_#1A1A1A]">
+                    <h3 className="font-black text-lg text-white bg-[#FF6B6B] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Negative Signals</h3>
+                    <ul className="space-y-3">
+                      {(concallStatusData.summary_data.negative || []).map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-3">
+                          <AlertTriangle className="text-[#FF6B6B] shrink-0 mt-0.5" size={20} strokeWidth={2.5} />
+                          <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Guidance */}
+                  <div className="border-4 border-brutalist-dark p-6 bg-[#FDFBF7] shadow-[4px_4px_0px_0px_#1A1A1A] md:col-span-2">
+                    <h3 className="font-black text-lg text-brutalist-dark bg-[#F2EBE3] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Forward Guidance & Commitments</h3>
+                    <ul className="space-y-3">
+                      {(concallStatusData.summary_data.guidance || []).map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-3">
+                          <TrendingUp className="text-brutalist-dark shrink-0 mt-0.5" size={20} strokeWidth={2.5} />
+                          <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  
+                  {/* Risks */}
+                  <div className="border-4 border-brutalist-dark p-6 bg-[#FDFBF7] shadow-[4px_4px_0px_0px_#1A1A1A] md:col-span-2">
+                    <h3 className="font-black text-lg text-white bg-[#D95A2B] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Key Risks to Watch</h3>
+                    <ul className="space-y-3">
+                      {(concallStatusData.summary_data.key_risks_to_watch || []).map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-3">
+                          <AlertTriangle className="text-[#D95A2B] shrink-0 mt-0.5" size={20} strokeWidth={2.5} />
+                          <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+              </div>
             ) : (
               <div className="brutalist-panel p-4 sm:p-8 flex flex-col border-4 border-brutalist-dark shadow-[4px_4px_0px_0px_#1A1A1A] bg-[#FDFBF7]">
                 <h2 className="text-base sm:text-lg font-black uppercase tracking-tight text-brutalist-dark mb-4 flex items-center gap-2">
@@ -1108,9 +1168,37 @@ function App() {
                 </h2>
 
                 <form onSubmit={uploadConcall} className="flex flex-col gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <input type="text" placeholder="Company Name (e.g. HDFC Bank)" value={concallCompanyName} onChange={e => setConcallCompanyName(e.target.value)} className="border-2 border-black p-3 font-mono text-sm outline-none focus:bg-stone-100" required />
+                    <select value={concallSector} onChange={e => setConcallSector(e.target.value)} className="border-2 border-black p-3 font-mono text-sm outline-none focus:bg-stone-100" required>
+                      <option value="" disabled>Select sector</option>
+                      <option value="Banking">Banking</option>
+                      <option value="NBFC">NBFC</option>
+                      <option value="FMCG">FMCG</option>
+                      <option value="IT Services">IT Services</option>
+                      <option value="Pharmaceuticals">Pharmaceuticals</option>
+                      <option value="Auto & Auto Ancillary">Auto & Auto Ancillary</option>
+                      <option value="Quick Commerce">Quick Commerce</option>
+                      <option value="Real Estate">Real Estate</option>
+                      <option value="Metals & Mining">Metals & Mining</option>
+                      <option value="Oil & Gas">Oil & Gas</option>
+                      <option value="Telecom">Telecom</option>
+                      <option value="Insurance">Insurance</option>
+                      <option value="Cement">Cement</option>
+                      <option value="Retail">Retail</option>
+                      <option value="General Corporate">Other (General Corporate)</option>
+                    </select>
+                    <select value={concallQuarter} onChange={e => setConcallQuarter(e.target.value)} className="border-2 border-black p-3 font-mono text-sm outline-none focus:bg-stone-100" required>
+                      <option value="Q1">Q1</option>
+                      <option value="Q2">Q2</option>
+                      <option value="Q3">Q3</option>
+                      <option value="Q4">Q4</option>
+                    </select>
+                    <input type="text" placeholder="Financial Year (e.g. FY26)" value={concallFiscalYear} onChange={e => setConcallFiscalYear(e.target.value)} className="border-2 border-black p-3 font-mono text-sm outline-none focus:bg-stone-100" required />
+                  </div>
 
                   <label className="cursor-pointer border-2 border-dashed border-black p-4 text-center font-bold uppercase font-mono text-sm hover:bg-black/5 transition-colors">
-                    {concallFile ? concallFile.name : "SELECT TRANSCRIPT (.TXT/.PDF)"}
+                    {concallFile ? concallFile.name : "DROP EARNINGS CALL PDF HERE OR CLICK TO UPLOAD"}
                     <input
                       type="file"
                       className="hidden"

@@ -87,6 +87,37 @@ def process_concall_document(document_id: str, file_bytes: bytes, filename: str)
             namespace=document_id  # Isolate per session
         )
 
+        # 4.5 Run 3-Stage Summarization
+        try:
+            from app.services.summarizer import ConcallSummarizer
+            summarizer = ConcallSummarizer()
+            
+            # Stage 1
+            guide = summarizer.stage_1_get_domain_guide(
+                company_name=doc_record.company_name,
+                sector=doc_record.sector,
+                quarter=doc_record.quarter,
+                fy=doc_record.fiscal_year
+            )
+            
+            # Stage 2
+            filtered_transcript = summarizer.stage_2_tfidf_filter(text_content, guide)
+            
+            # Stage 3
+            summary_data = summarizer.stage_3_summarize(
+                company_name=doc_record.company_name,
+                sector=doc_record.sector,
+                quarter=doc_record.quarter,
+                fy=doc_record.fiscal_year,
+                filtered_transcript=filtered_transcript
+            )
+            
+            doc_record.summary_data = summary_data
+            logger.info(f"[ConcallProcessor] Generated summary for {document_id}")
+        except Exception as e:
+            logger.error(f"[ConcallProcessor] Failed to generate summary for {document_id}: {e}\n{traceback.format_exc()}")
+            # We continue even if summary fails, so user can at least chat
+
         # 5. Flip status
         doc_record.processed_status = "COMPLETED"
         db.commit()

@@ -22,7 +22,8 @@ async def upload_and_process_concall(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     company_name: str = Form("Unknown"),
-    quarter: str = Form("N/A"),
+    sector: str = Form("Unknown"),
+    quarter: str = Form("Q4"),
     fiscal_year: str = Form("N/A"),
     db: Session = Depends(get_db)
 ):
@@ -40,6 +41,7 @@ async def upload_and_process_concall(
     new_doc = ConcallDocument(
         id=document_id,
         company_name=company_name,
+        sector=sector,
         quarter=quarter,
         fiscal_year=fiscal_year,
         processed_status="PENDING"
@@ -71,7 +73,8 @@ async def get_concall_status(document_id: str, db: Session = Depends(get_db)):
         "quarter": doc.quarter,
         "fiscal_year": doc.fiscal_year,
         "status": doc.processed_status,
-        "error_message": getattr(doc, "error_message", None)
+        "error_message": getattr(doc, "error_message", None),
+        "summary_data": getattr(doc, "summary_data", None)
     }
 
 class ChatRequest(BaseModel):
