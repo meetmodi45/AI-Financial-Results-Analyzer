@@ -315,7 +315,14 @@ function App() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       setConcallDocumentId(res.data.document_id);
-      setConcallStatusData({ status: res.data.status });
+      // If the backend returned COMPLETED (dedup hit), set status directly
+      // so the summary renders immediately without polling.
+      if (res.data.status === 'COMPLETED') {
+        const statusRes = await axios.get(`${API_BASE}/concall/status/${res.data.document_id}`);
+        setConcallStatusData(statusRes.data);
+      } else {
+        setConcallStatusData({ status: res.data.status });
+      }
     } catch (e) {
       setConcallError(parseApiError(e, "Upload failed. Please try again."));
       console.error(e);

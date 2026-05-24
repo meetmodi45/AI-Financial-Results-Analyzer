@@ -27,6 +27,27 @@ async def upload_and_process_concall(
     fiscal_year: str = Form("N/A"),
     db: Session = Depends(get_db)
 ):
+    # --- Deduplication check ---
+    # If a successfully processed document already exists for the same
+    # company / sector / quarter / FY, return it immediately — no LLM call,
+    # no Pinecone upsert, no wasted tokens.
+    existing = db.query(ConcallDocument).filter(
+        ConcallDocument.company_name == company_name,
+        ConcallDocument.sector == sector,
+        ConcallDocument.quarter == quarter,
+        ConcallDocument.fiscal_year == fiscal_year,
+        ConcallDocument.processed_status == "COMPLETED"
+    ).first()
+
+    if existing:
+        logger.info(f"Dedup hit: returning existing document {existing.id} for {company_name} {quarter} {fiscal_year}")
+        return {
+            "document_id": existing.id,
+            "company_name": existing.company_name,
+            "status": "COMPLETED",
+            "message": f"Already processed — returning existing result for {company_name} {quarter} {fiscal_year}"
+        }
+
     document_id = str(uuid.uuid4())
 
     # Read file entirely into memory — no disk write
