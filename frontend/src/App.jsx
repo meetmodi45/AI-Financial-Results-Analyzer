@@ -61,6 +61,7 @@ function App() {
   const [concallStatusData, setConcallStatusData] = useState(null);
   const [concallError, setConcallError] = useState(null);
   const [isConcallUploading, setIsConcallUploading] = useState(false);
+  const [isConcallCached, setIsConcallCached] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [currentQuery, setCurrentQuery] = useState("");
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -318,9 +319,11 @@ function App() {
       // If the backend returned COMPLETED (dedup hit), set status directly
       // so the summary renders immediately without polling.
       if (res.data.status === 'COMPLETED') {
+        setIsConcallCached(true);
         const statusRes = await axios.get(`${API_BASE}/concall/status/${res.data.document_id}`);
         setConcallStatusData(statusRes.data);
       } else {
+        setIsConcallCached(false);
         setConcallStatusData({ status: res.data.status });
       }
     } catch (e) {
@@ -383,7 +386,7 @@ function App() {
               <Activity className="text-brutalist-dark" size={20} />
             </div>
             <h1 className="text-base sm:text-xl font-black tracking-tight uppercase flex flex-col sm:flex-row sm:gap-1 leading-none sm:leading-normal">
-              <span>AI Financial Results</span>
+              <span>AI Financial Results & Concall</span>
               <span className="font-serif italic text-brutalist-green lowercase capitalize mt-1 sm:mt-0">Analyzer.</span>
             </h1>
           </div>
@@ -1102,6 +1105,12 @@ function App() {
 
             {concallStatusData?.status === 'COMPLETED' ? (
               <div className="space-y-8 animate-in fade-in duration-700">
+                {isConcallCached && (
+                  <div className="bg-brutalist-green text-white border-4 border-brutalist-dark p-3 text-sm font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_#1A1A1A]">
+                    <Database size={20} />
+                    Instant Load: Summary retrieved from cache
+                  </div>
+                )}
                 <div className="brutalist-panel flex flex-col border-4 border-brutalist-dark shadow-[4px_4px_0px_0px_#1A1A1A] bg-[#FDFBF7] h-[600px] sm:h-[500px]">
                 <div className="bg-[#1A1A1A] text-white p-3 sm:p-4 font-black uppercase tracking-widest border-b-4 border-brutalist-dark flex justify-between items-center gap-2">
                   <span className="truncate pr-4 text-sm sm:text-base">Chat: {concallFile ? concallFile.name : 'Transcript'}</span>

@@ -27,6 +27,12 @@ async def upload_and_process_concall(
     fiscal_year: str = Form("N/A"),
     db: Session = Depends(get_db)
 ):
+    # Normalize inputs so "union bank", "Union Bank", "UNION BANK" all match
+    company_name = company_name.strip().title()
+    sector = sector.strip().title()
+    quarter = quarter.strip().upper()
+    fiscal_year = fiscal_year.strip().upper()
+
     # --- Deduplication check ---
     # If a successfully processed document already exists for the same
     # company / sector / quarter / FY, return it immediately — no LLM call,
