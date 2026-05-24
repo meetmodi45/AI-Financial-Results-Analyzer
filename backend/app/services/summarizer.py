@@ -4,8 +4,6 @@ import re
 from typing import Dict, Any, List
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 import logging
 
 logger = logging.getLogger(__name__)
@@ -127,14 +125,17 @@ Transcript (pre-filtered, high-signal sentences only):
 {FILTERED_TRANSCRIPT}"""
 
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "cache")
-os.makedirs(CACHE_DIR, exist_ok=True)
+try:
+    os.makedirs(CACHE_DIR, exist_ok=True)
+except OSError as e:
+    logger.warning(f"Could not create cache directory {CACHE_DIR}: {e}. Sector guides will not be cached to disk.")
 
 class ConcallSummarizer:
     def __init__(self):
         # We use a cheap, fast model for Stage 1, and the main model for Stage 3
         # Llama 3 is great for strict JSON
         self.llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
-        self.vectorizer = TfidfVectorizer(ngram_range=(1, 3), stop_words='english')
+        self._vectorizer = None  # Lazily initialized to avoid import-time sklearn crash
 
     def _get_cache_path(self, sector: str) -> str:
         s_safe = "".join(c if c.isalnum() else "_" for c in sector).lower()
@@ -209,6 +210,18 @@ class ConcallSummarizer:
         return cleaned_sentences
 
     def stage_2_tfidf_filter(self, transcript: str, guide: Dict[str, List[str]]) -> str:
+        # Lazy import sklearn here so a missing/broken install doesn't crash the module at startup
+        try:
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            from sklearn.metrics.pairwise import cosine_similarity
+        except ImportError as e:
+            logger.error(f"scikit-learn not available, falling back to first 40% of sentences: {e}")
+            sentences_fallback = self._clean_text(transcript)
+            return "\n".join(sentences_fallback[:max(1, int(len(sentences_fallback) * 0.4))])
+
+        if self._vectorizer is None:
+            self._vectorizer = TfidfVectorizer(ngram_range=(1, 3), stop_words='english')
+
         sentences = self._clean_text(transcript)
         if not sentences:
             return ""
@@ -227,7 +240,7 @@ class ConcallSummarizer:
         corpus = [positive_corpus, negative_corpus] + sentences
         
         try:
-            X = self.vectorizer.fit_transform(corpus)
+            X = self._vectorizer.fit_transform(corpus)
         except ValueError:
             return "\n".join(sentences[:int(len(sentences)*0.4)])
             
@@ -236,6 +249,8 @@ class ConcallSummarizer:
         pos_vec = X[0:1]
         neg_vec = X[1:2]
         sent_vecs = X[2:]
+
+        # cosine_similarity imported above in this scope
         
         pos_scores = cosine_similarity(sent_vecs, pos_vec).flatten()
         neg_scores = cosine_similarity(sent_vecs, neg_vec).flatten()
