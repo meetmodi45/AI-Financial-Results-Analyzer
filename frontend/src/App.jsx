@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Activity, FileText, Upload, AlertTriangle, TrendingUp, BarChart3, Database, FileDigit, Calendar, CheckCircle, DollarSign, TrendingDown } from 'lucide-react';
+import { Activity, FileText, Upload, AlertTriangle, TrendingUp, BarChart3, Database, FileDigit, Calendar, CheckCircle, DollarSign, TrendingDown, Menu, X } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 import GlobalAssistant from './components/GlobalAssistant';
 import ResearchDashboard from './components/ResearchDashboard';
@@ -72,6 +72,7 @@ function App() {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [activePhaseText, setActivePhaseText] = useState("");
   const [activeTab, setActiveTab] = useState("RESEARCH");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const [isConcallAnalyzing, setIsConcallAnalyzing] = useState(false);
   const [concallProgress, setConcallProgress] = useState(0);
@@ -386,49 +387,54 @@ function App() {
             <div className="w-8 h-8 rounded-none border-2 border-brutalist-dark bg-brutalist-orange flex items-center justify-center shadow-[2px_2px_0px_0px_#1A1A1A]">
               <Activity className="text-brutalist-dark" size={20} />
             </div>
-            <h1 className="text-base sm:text-xl font-black tracking-tight uppercase flex flex-col sm:flex-row sm:gap-1 leading-none sm:leading-normal">
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight uppercase flex items-center gap-1.5 leading-none">
               <span>Hitman</span>
               <span className="font-serif italic text-brutalist-green lowercase capitalize mt-1 sm:mt-0">Finance.</span>
             </h1>
           </div>
-          <div className="hidden md:block text-sm text-brutalist-dark font-mono uppercase tracking-widest font-bold">
-            AI-POWERED FINANCE APP
+          {/* Desktop Nav (Replaces the subtitle) */}
+          <div className="hidden md:flex items-center gap-8 text-sm text-brutalist-dark font-mono uppercase tracking-widest font-black">
+            <button onClick={() => setActiveTab('RESEARCH')} className={`transition-colors hover:text-brutalist-orange ${activeTab === 'RESEARCH' ? 'text-[#2E6F40] underline decoration-4 underline-offset-4' : ''}`}>Equity Research</button>
+            <button onClick={() => setActiveTab('RESULTS')} className={`transition-colors hover:text-brutalist-orange ${activeTab === 'RESULTS' ? 'text-brutalist-orange underline decoration-4 underline-offset-4' : ''}`}>Results Analysis</button>
+            <button onClick={() => setActiveTab('CONCALL')} className={`transition-colors hover:text-brutalist-orange ${activeTab === 'CONCALL' ? 'text-[#FF6B6B] underline decoration-4 underline-offset-4' : ''}`}>Earnings Calls</button>
+          </div>
+
+          {/* Mobile Hamburger Toggle */}
+          <div className="md:hidden flex items-center">
+            <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-brutalist-dark p-2">
+              {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
+            </button>
           </div>
         </div>
+
+        {/* Mobile Dropdown Menu (Compact Floating Box) */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden bg-[#F2EBE3] border-4 border-brutalist-dark absolute top-full right-4 mt-2 w-56 flex flex-col shadow-[4px_4px_0px_0px_#1A1A1A]">
+            <button onClick={() => { setActiveTab('RESEARCH'); setIsMobileMenuOpen(false); }} className={`px-4 py-3 text-sm font-black uppercase tracking-widest border-b-4 border-brutalist-dark text-left ${activeTab === 'RESEARCH' ? 'bg-[#2E6F40] text-white' : 'text-brutalist-dark hover:bg-stone-200'}`}>Equity Research</button>
+            <button onClick={() => { setActiveTab('RESULTS'); setIsMobileMenuOpen(false); }} className={`px-4 py-3 text-sm font-black uppercase tracking-widest border-b-4 border-brutalist-dark text-left ${activeTab === 'RESULTS' ? 'bg-brutalist-orange text-brutalist-dark' : 'text-brutalist-dark hover:bg-stone-200'}`}>Results Analysis</button>
+            <button onClick={() => { setActiveTab('CONCALL'); setIsMobileMenuOpen(false); }} className={`px-4 py-3 text-sm font-black uppercase tracking-widest text-left ${activeTab === 'CONCALL' ? 'bg-[#FF6B6B] text-white' : 'text-brutalist-dark hover:bg-stone-200'}`}>Earnings Calls</button>
+          </div>
+        )}
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-10 space-y-12">
 
-        {/* Toggle Bar */}
-        <div className="flex justify-center mb-8 w-full">
-          <div className="flex flex-col sm:flex-row bg-white border-4 border-brutalist-dark shadow-[4px_4px_0px_0px_#1A1A1A] w-full sm:w-auto">
-            <button
-              onClick={() => setActiveTab('RESEARCH')}
-              className={`w-full sm:w-auto px-4 sm:px-6 py-3 text-sm sm:text-base font-black uppercase tracking-widest transition-colors ${activeTab === 'RESEARCH' ? 'bg-[#2E6F40] text-white' : 'bg-transparent text-brutalist-dark hover:bg-stone-100'}`}
-            >
-              Equity Research
-            </button>
-            <div className="h-1 sm:h-auto sm:w-1 bg-brutalist-dark"></div>
-            <button
-              onClick={() => setActiveTab('RESULTS')}
-              className={`w-full sm:w-auto px-4 sm:px-6 py-3 text-sm sm:text-base font-black uppercase tracking-widest transition-colors ${activeTab === 'RESULTS' ? 'bg-brutalist-orange text-brutalist-dark' : 'bg-transparent text-brutalist-dark hover:bg-stone-100'}`}
-            >
-              Results Analysis
-            </button>
-            <div className="h-1 sm:h-auto sm:w-1 bg-brutalist-dark"></div>
-            <button
-              onClick={() => setActiveTab('CONCALL')}
-              className={`w-full sm:w-auto px-4 sm:px-6 py-3 text-sm sm:text-base font-black uppercase tracking-widest transition-colors ${activeTab === 'CONCALL' ? 'bg-[#FF6B6B] text-white' : 'bg-transparent text-brutalist-dark hover:bg-stone-100'}`}
-            >
-              Earnings Calls
-            </button>
-          </div>
-        </div>
-
         {activeTab === 'RESEARCH' && <ResearchDashboard />}
+
+
 
         {activeTab === 'RESULTS' && (
           <div className="space-y-12">
+            
+            {/* Results Header */}
+            <div className="brutalist-panel p-8 text-center bg-[#F2EBE3]">
+              <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter mb-4 leading-none text-brutalist-orange">
+                AI Financial Results Analysis
+              </h2>
+              <p className="text-brutalist-dark font-mono text-sm max-w-2xl mx-auto font-bold">
+                Upload any company's quarterly or annual financial results PDF. Our AI agents will instantly extract metrics, normalize data, and generate an institutional-grade summary.
+              </p>
+            </div>
 
 
             {/* Top Section: Upload & Status */}
@@ -1109,7 +1115,17 @@ function App() {
         )}
 
         {activeTab === 'CONCALL' && (
-          <div className="max-w-3xl mx-auto w-full">
+          <div className="max-w-3xl mx-auto w-full space-y-8">
+            {/* Concall Header */}
+            <div className="brutalist-panel p-8 text-center bg-[#F2EBE3]">
+              <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter mb-4 leading-none text-[#FF6B6B]">
+                Earnings Call Intelligence
+              </h2>
+              <p className="text-brutalist-dark font-mono text-sm max-w-2xl mx-auto font-bold">
+                Upload earnings call transcripts. Our vector database maps the semantic context, allowing you to instantly interrogate management's commentary and uncover hidden risks.
+              </p>
+            </div>
+            
             {/* CONCALL INGESTION PANEL OR CHAT INTERFACE */}
             <div className="border-t-4 border-black my-8"></div>
 
