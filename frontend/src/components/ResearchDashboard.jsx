@@ -101,7 +101,7 @@ export default function ResearchDashboard() {
     setActiveModule('business');
   };
 
-  const analyzeModule = (moduleId) => {
+  const analyzeModule = async (moduleId) => {
     if (!selectedCompany) return;
 
     setModuleStates(prev => ({
@@ -109,52 +109,21 @@ export default function ResearchDashboard() {
       [moduleId]: { loading: true, data: '', error: null },
     }));
 
-    const eventSource = new EventSource(
-      `${API_BASE}/equity-research/analyze/${selectedCompany.symbol}/${moduleId}`
-    );
-
-    eventSource.onmessage = (event) => {
-      if (event.data === '[DONE]') {
-        eventSource.close();
-        setModuleStates(prev => ({
-          ...prev,
-          [moduleId]: { ...prev[moduleId], loading: false },
-        }));
-      } else {
-        try {
-          const parsed = JSON.parse(event.data);
-          if (parsed.error) {
-            setModuleStates(prev => ({
-              ...prev,
-              [moduleId]: { loading: false, data: '', error: parsed.error },
-            }));
-            eventSource.close();
-          } else if (parsed.content) {
-            setModuleStates(prev => ({
-              ...prev,
-              [moduleId]: {
-                ...prev[moduleId],
-                data: prev[moduleId].data + parsed.content,
-              },
-            }));
-          }
-        } catch (e) {
-          console.error('SSE parse error', e, event.data);
-        }
-      }
-    };
-
-    eventSource.onerror = () => {
-      eventSource.close();
+    try {
+      const res = await axios.get(
+        `${API_BASE}/equity-research/analyze/${selectedCompany.symbol}/${moduleId}`
+      );
       setModuleStates(prev => ({
         ...prev,
-        [moduleId]: {
-          ...prev[moduleId],
-          loading: false,
-          error: 'Connection lost. Please try again.',
-        },
+        [moduleId]: { loading: false, data: res.data.content, error: null },
       }));
-    };
+    } catch (err) {
+      const errMsg = err?.response?.data?.detail || err?.message || 'Analysis failed. Please try again.';
+      setModuleStates(prev => ({
+        ...prev,
+        [moduleId]: { loading: false, data: '', error: errMsg },
+      }));
+    }
   };
 
   const runAllModules = () => {

@@ -60,18 +60,17 @@ MODULE_AGENTS = {
 @router.get("/analyze/{ticker}/{module}")
 async def analyze_module(ticker: str, module: str, db: Session = Depends(get_db)):
     """
-    Stream the AI analysis for a specific module of a company.
+    Run an AI analysis agent for a specific module of a company.
+    Returns the full analysis as JSON once complete.
     """
+    from fastapi.responses import JSONResponse
+
     agent = MODULE_AGENTS.get(module.lower())
     if not agent:
-        raise HTTPException(status_code=400, detail=f"Module '{module}' not recognized or implemented yet.")
-        
-    return StreamingResponse(
-        agent.analyze_stream(ticker, module.lower(), db), 
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",   # Disables nginx buffering on Render — critical for SSE
-            "Connection": "keep-alive",
-        }
-    )
+        raise HTTPException(status_code=400, detail=f"Module '{module}' not recognized.")
+
+    try:
+        result = await agent.analyze(ticker, module.lower(), db)
+        return JSONResponse(content={"content": result})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
