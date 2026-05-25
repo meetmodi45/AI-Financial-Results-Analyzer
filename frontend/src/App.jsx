@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Activity, FileText, Upload, AlertTriangle, TrendingUp, BarChart3, Database, FileDigit, Calendar, CheckCircle, DollarSign, TrendingDown } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 import GlobalAssistant from './components/GlobalAssistant';
+import ResearchDashboard from './components/ResearchDashboard';
 
 const API_BASE = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000/api/v1`;
 
@@ -70,7 +71,7 @@ function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [activePhaseText, setActivePhaseText] = useState("");
-  const [activeTab, setActiveTab] = useState("RESULTS");
+  const [activeTab, setActiveTab] = useState("RESEARCH");
 
   const [isConcallAnalyzing, setIsConcallAnalyzing] = useState(false);
   const [concallProgress, setConcallProgress] = useState(0);
@@ -386,12 +387,12 @@ function App() {
               <Activity className="text-brutalist-dark" size={20} />
             </div>
             <h1 className="text-base sm:text-xl font-black tracking-tight uppercase flex flex-col sm:flex-row sm:gap-1 leading-none sm:leading-normal">
-              <span>AI Financial Results & Concall</span>
-              <span className="font-serif italic text-brutalist-green lowercase capitalize mt-1 sm:mt-0">Analyzer.</span>
+              <span>Hitman</span>
+              <span className="font-serif italic text-brutalist-green lowercase capitalize mt-1 sm:mt-0">Finance.</span>
             </h1>
           </div>
           <div className="hidden md:block text-sm text-brutalist-dark font-mono uppercase tracking-widest font-bold">
-            DETERMINISTIC-COGNITIVE PIPELINE
+            AI-POWERED FINANCE APP
           </div>
         </div>
       </header>
@@ -399,23 +400,32 @@ function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-10 space-y-12">
 
         {/* Toggle Bar */}
-        <div className="flex justify-center mb-8">
-          <div className="flex bg-white border-4 border-brutalist-dark shadow-[4px_4px_0px_0px_#1A1A1A]">
+        <div className="flex justify-center mb-8 w-full">
+          <div className="flex flex-col sm:flex-row bg-white border-4 border-brutalist-dark shadow-[4px_4px_0px_0px_#1A1A1A] w-full sm:w-auto">
+            <button
+              onClick={() => setActiveTab('RESEARCH')}
+              className={`w-full sm:w-auto px-4 sm:px-6 py-3 text-sm sm:text-base font-black uppercase tracking-widest transition-colors ${activeTab === 'RESEARCH' ? 'bg-[#2E6F40] text-white' : 'bg-transparent text-brutalist-dark hover:bg-stone-100'}`}
+            >
+              Equity Research
+            </button>
+            <div className="h-1 sm:h-auto sm:w-1 bg-brutalist-dark"></div>
             <button
               onClick={() => setActiveTab('RESULTS')}
-              className={`px-6 py-3 font-black uppercase tracking-widest transition-colors ${activeTab === 'RESULTS' ? 'bg-brutalist-orange text-brutalist-dark' : 'bg-transparent text-brutalist-dark hover:bg-stone-100'}`}
+              className={`w-full sm:w-auto px-4 sm:px-6 py-3 text-sm sm:text-base font-black uppercase tracking-widest transition-colors ${activeTab === 'RESULTS' ? 'bg-brutalist-orange text-brutalist-dark' : 'bg-transparent text-brutalist-dark hover:bg-stone-100'}`}
             >
               Results Analysis
             </button>
-            <div className="w-1 bg-brutalist-dark"></div>
+            <div className="h-1 sm:h-auto sm:w-1 bg-brutalist-dark"></div>
             <button
               onClick={() => setActiveTab('CONCALL')}
-              className={`px-6 py-3 font-black uppercase tracking-widest transition-colors ${activeTab === 'CONCALL' ? 'bg-[#FF6B6B] text-white' : 'bg-transparent text-brutalist-dark hover:bg-stone-100'}`}
+              className={`w-full sm:w-auto px-4 sm:px-6 py-3 text-sm sm:text-base font-black uppercase tracking-widest transition-colors ${activeTab === 'CONCALL' ? 'bg-[#FF6B6B] text-white' : 'bg-transparent text-brutalist-dark hover:bg-stone-100'}`}
             >
               Earnings Calls
             </button>
           </div>
         </div>
+
+        {activeTab === 'RESEARCH' && <ResearchDashboard />}
 
         {activeTab === 'RESULTS' && (
           <div className="space-y-12">

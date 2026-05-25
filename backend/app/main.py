@@ -7,10 +7,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import routes
 from app.api import concall
 from app.api import assistant
+from app.api import equity_research
 from app.core.db import engine
 from app.models.base import Base
 from app.models.document import Document
 from app.models.concall import ConcallDocument
+from app.models.equity_research import Company, ResearchCache, APICache
 import logging
 
 logger = logging.getLogger(__name__)
@@ -60,6 +62,7 @@ app.add_middleware(
 app.include_router(routes.router, prefix="/api/v1")
 app.include_router(concall.router, prefix="/api/v1/concall")
 app.include_router(assistant.router, prefix="/api/v1/assistant")
+app.include_router(equity_research.router, prefix="/api/v1/equity-research")
 
 @app.get("/")
 def read_root():

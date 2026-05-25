@@ -21,8 +21,11 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str | None = os.getenv("GROQ_API_KEY")
     PINECONE_API_KEY: str | None = os.getenv("PINECONE_API_KEY")
     PINECONE_INDEX_NAME: str | None = os.getenv("PINECONE_INDEX_NAME", "financial-reports-index")
+    GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY")
+    GOOGLE_API_KEY: str | None = os.getenv("GOOGLE_API_KEY")
     
     class Config:
+        extra = "ignore"
         env_file = "../.env"
 
 settings = Settings()
