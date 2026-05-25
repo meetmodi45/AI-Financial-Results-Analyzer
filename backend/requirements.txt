@@ -19,7 +19,6 @@ langchain-pinecone>=0.2.0
 pinecone
 langchain-text-splitters
 nltk
-
-httpx
 yfinance
+httpx
 langchain-google-genai

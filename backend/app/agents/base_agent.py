@@ -118,26 +118,3 @@ class BaseResearchAgent:
         #         db.rollback()
         
         yield "data: [DONE]\n\n"
-
-    async def analyze(self, symbol: str, module_name: str, db: Session) -> str:
-        """
-        Non-streaming version: returns the complete analysis as a plain string.
-        Used by the JSON endpoint to avoid SSE/nginx buffering issues on Render.
-        """
-        data = await self.fetch_data(symbol, db)
-
-        system_prompt = "You are a Senior Equity Research Analyst at a top-tier institutional firm."
-        human_prompt = self.get_prompt_template().format(**data, symbol=symbol)
-
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=human_prompt)
-        ]
-
-        try:
-            response = await self.primary_llm.ainvoke(messages)
-            return response.content
-        except Exception as primary_e:
-            print(f"Primary LLM failed ({primary_e}). Triggering Groq fallback...")
-            response = await self.fallback_llm.ainvoke(messages)
-            return response.content
