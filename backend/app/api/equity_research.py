@@ -68,5 +68,10 @@ async def analyze_module(ticker: str, module: str, db: Session = Depends(get_db)
         
     return StreamingResponse(
         agent.analyze_stream(ticker, module.lower(), db), 
-        media_type="text/event-stream"
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",   # Disables nginx buffering on Render — critical for SSE
+            "Connection": "keep-alive",
+        }
     )
