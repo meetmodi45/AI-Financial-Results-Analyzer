@@ -21,4 +21,5 @@ langchain-text-splitters
 nltk
 
 httpx
+yfinance
 langchain-google-genai
