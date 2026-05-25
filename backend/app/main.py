@@ -52,7 +52,7 @@ app = FastAPI(
 
 import io
 import csv
-import urllib.request
+import os
 
 @app.on_event("startup")
 def populate_companies_if_empty():
@@ -63,43 +63,44 @@ def populate_companies_if_empty():
     try:
         count = db.query(Company).count()
         if count == 0:
-            logger.info("Company table is empty. Fetching NSE equities list from archives...")
-            url = "https://archives.nseindia.com/content/equities/EQUITY_L.csv"
+            # Load from the bundled CSV — avoids 403s from NSE WAF on non-Indian IPs (e.g. Render)
+            csv_path = os.path.join(os.path.dirname(__file__), "..", "data", "NSE_EQUITY.csv")
+            csv_path = os.path.abspath(csv_path)
             
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
-            with urllib.request.urlopen(req) as response:
-                decoded_content = response.read().decode('utf-8-sig')
-                
-            reader = csv.DictReader(io.StringIO(decoded_content))
-            added = 0
-            for row in reader:
-                row_dict = {str(k).strip(): v for k, v in row.items()}
-                
-                symbol = str(row_dict.get('SYMBOL', '')).strip()
-                name = str(row_dict.get('NAME OF COMPANY', '')).strip()
-                
-                if not symbol or not name or symbol.lower() == 'nan':
-                    continue
+            logger.info(f"Company table is empty. Loading NSE equities from bundled CSV: {csv_path}")
+            
+            with open(csv_path, "r", encoding="utf-8-sig") as f:
+                reader = csv.DictReader(f)
+                added = 0
+                for row in reader:
+                    row_dict = {str(k).strip(): v for k, v in row.items()}
                     
-                isin = str(row_dict.get('ISIN NUMBER', '')).strip()
+                    symbol = str(row_dict.get('SYMBOL', '')).strip()
+                    name = str(row_dict.get('NAME OF COMPANY', '')).strip()
+                    
+                    if not symbol or not name or symbol.lower() == 'nan':
+                        continue
+                        
+                    isin = str(row_dict.get('ISIN NUMBER', '')).strip()
+                    
+                    db.add(Company(
+                        symbol=symbol,
+                        name=name,
+                        isin=isin if isin and isin.lower() != 'nan' else None,
+                        exchange="NSE"
+                    ))
+                    added += 1
+                    
+                    if added % 500 == 0:
+                        db.commit()
                 
-                db.add(Company(
-                    symbol=symbol,
-                    name=name,
-                    isin=isin if isin and isin.lower() != 'nan' else None,
-                    exchange="NSE"
-                ))
-                added += 1
-                
-                if added % 500 == 0:
-                    db.commit()
-            
-            db.commit()
-            logger.info(f"Successfully populated database with {added} NSE companies on startup.")
+                db.commit()
+                logger.info(f"Successfully populated database with {added} NSE companies from bundled CSV.")
     except Exception as e:
         logger.error(f"Failed to auto-populate NSE companies: {e}")
     finally:
         db.close()
+
 
 # CORS config to allow React frontend (Vite default is 5173, Next.js is 3000)
 app.add_middleware(
