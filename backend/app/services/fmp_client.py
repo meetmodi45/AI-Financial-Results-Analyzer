@@ -261,7 +261,8 @@ async def get_key_metrics(symbol: str, db: Session):
         "returnOnEquity": val_data.get("returnOnEquity"),
         "returnOnAssets": val_data.get("returnOnAssets"),
         "trailingPE": val_data.get("trailingPE"),
-        "priceToBook": val_data.get("priceToBook")
+        "priceToBook": val_data.get("priceToBook"),
+        "marketCap": val_data.get("marketCap") / 10000000.0 if val_data.get("marketCap") else None
     }]
 
 async def get_company_news(symbol: str, db: Session):
@@ -312,7 +313,7 @@ async def get_company_news(symbol: str, db: Session):
                 
             news_items.sort(key=lambda x: x["_timestamp"], reverse=True)
             for item in news_items: del item["_timestamp"]
-            return news_items[:5]
+            return news_items[:10]
         except Exception as e:
             return []
             
@@ -330,17 +331,59 @@ async def get_technical_data(symbol: str, db: Session):
     else:
         curr_price = price_data
 
+    # Parse moving averages from stockTechnicalData
+    tech_list = data.get("stockTechnicalData") or []
+    dma50 = None
+    dma200 = None
+    
+    for item in tech_list:
+        days = item.get("days")
+        # Get price prioritizing NSE then BSE
+        p_val = item.get("nsePrice") or item.get("bsePrice")
+        if p_val and p_val != "N/A":
+            try:
+                p_val = float(p_val)
+            except ValueError:
+                p_val = None
+                
+        if p_val is not None:
+            if days == 50:
+                dma50 = p_val
+            elif days == 300: # 300 DMA is the closest long-term average available in IndianAPI
+                dma200 = p_val
+            elif days == 100 and dma200 is None: # fallback proxy if 300 not found
+                dma200 = p_val
+
+    # Parse average volume and today's volume indicator from keyMetrics -> priceandVolume
+    vol_10d = None
+    vol_3m = None
+    metrics_list = data.get("keyMetrics", {}).get("priceandVolume") or []
+    for m in metrics_list:
+        key = m.get("key")
+        val = m.get("value")
+        if val and val != "N/A":
+            try:
+                val = float(val)
+            except ValueError:
+                val = None
+        if val is not None:
+            if key == "avgTradingVolumeLast10Days":
+                vol_10d = val
+            elif key == "avgTradingVolumeLast3months":
+                vol_3m = val
+
     # Return structure mapped to technical agent expectations
     return {
-        "currentPrice": curr_price if curr_price != "N/A" else None,
+        "currentPrice": float(curr_price) if curr_price not in ("N/A", None) else None,
         "fiftyTwoWeekHigh": data.get("yearHigh") or data.get("year_high"),
         "fiftyTwoWeekLow": data.get("yearLow") or data.get("year_low"),
-        "fiftyDayAverage": None,
-        "twoHundredDayAverage": None,
-        "regularMarketVolume": None,
-        "averageVolume": None,
+        "fiftyDayAverage": dma50,
+        "twoHundredDayAverage": dma200,
+        "regularMarketVolume": vol_10d,
+        "averageVolume": vol_3m,
         "percentChange": data.get("percentChange") or data.get("percent_change")
     }
+
 
 async def get_valuation_data(symbol: str, db: Session):
     data, ratios_data, cf_data, bs_data, qr_data, sh_data = await asyncio.gather(

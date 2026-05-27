@@ -1,22 +1,31 @@
 import json
 from app.agents.base_agent import BaseResearchAgent
-from app.services.fmp_client import get_company_profile, get_income_statement, get_key_metrics
+from app.services.fmp_client import get_company_profile, get_key_metrics, fetch_indianapi_data
 from sqlalchemy.orm import Session
 import asyncio
 
 class MoatAgent(BaseResearchAgent):
     
     async def fetch_data(self, symbol: str, db: Session) -> dict:
-        profile, metrics = await asyncio.gather(
+        profile, metrics, raw_data = await asyncio.gather(
             get_company_profile(symbol, db),
-            get_key_metrics(symbol, db)
+            get_key_metrics(symbol, db),
+            fetch_indianapi_data(symbol, db)
         )
         
         recent_metrics = metrics[:1] if metrics and isinstance(metrics, list) else []
         
+        # Extract peers list
+        peers = []
+        if raw_data:
+            reusable = raw_data.get("stockDetailsReusableData") or {}
+            profile_data = raw_data.get("companyProfile") or {}
+            peers = profile_data.get("peerCompanyList") or reusable.get("peerCompanyList") or []
+            
         return {
             "profile": json.dumps(profile[0] if profile else {}),
-            "key_metrics": json.dumps(recent_metrics)
+            "key_metrics": json.dumps(recent_metrics),
+            "peers": json.dumps(peers, indent=2)
         }
 
     def get_prompt_template(self) -> str:
@@ -27,6 +36,7 @@ Perform a deep moat and competition analysis of {symbol}. Go beyond superficial 
 Here is the raw data to assist your analysis:
 Company Profile: {profile}
 Key Performance Metrics (ROE, Margins, Growth): {key_metrics}
+Peer Competitor List & Metrics: {peers}
 
 Structure your exact output using the following Markdown headers and guidelines:
 
@@ -41,9 +51,9 @@ Structure your exact output using the following Markdown headers and guidelines:
 * **Commoditization Risk:** Are their products/services at risk of becoming commodities? Are current margins sustainable long-term?
 
 ### 3. Competitor Comparison
-* **The Rivals:** Identify the top competitors. Why do customers choose this company over competitors, and what do competitors do better?
-* **Execution Superiority:** Based on the provided ROE, Margin, and Growth metrics, does this company mathematically execute better than industry norms? 
-* **The Biggest Threat:** Which competitor is the biggest long-term threat and why?
+* **The Rivals:** Identify the top competitors from the provided list. What are their moats, how do they do business, and why do customers choose this company over competitors (or vice versa)?
+* **Execution Superiority & Uniqueness:** What makes this company unique compared to these peers? Based on the ROE, Margin, and Growth metrics provided, does this company mathematically execute better than industry norms? 
+* **The Biggest Threat:** Which company in the peer list is the biggest long-term threat to this company, and why?
 
 ### 4. The Long-Term Verdict
 * **Disruption Risk:** Can AI, automation, or technology shifts disrupt this moat?
