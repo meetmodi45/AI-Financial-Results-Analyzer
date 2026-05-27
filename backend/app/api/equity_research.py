@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -75,3 +76,24 @@ async def analyze_module(ticker: str, module: str, db: Session = Depends(get_db)
             "X-Accel-Buffering": "no"
         }
     )
+
+
+from app.services.fmp_client import get_income_statement, get_balance_sheet, get_cash_flow_statement
+
+@router.get("/financials-data/{ticker}")
+async def get_financials_data(ticker: str, db: Session = Depends(get_db)):
+    """
+    Returns raw financial statement tables (Income Statement, Balance Sheet, Cash Flow)
+    as structured JSON — NO LLM involved. Used by the frontend to display data tables
+    immediately. The user can then optionally trigger LLM summarization separately.
+    """
+    income_stmt, balance_sheet, cash_flow = await asyncio.gather(
+        get_income_statement(ticker, db),
+        get_balance_sheet(ticker, db),
+        get_cash_flow_statement(ticker, db),
+    )
+    return {
+        "income_statement": income_stmt,
+        "balance_sheet": balance_sheet,
+        "cash_flow": cash_flow,
+    }

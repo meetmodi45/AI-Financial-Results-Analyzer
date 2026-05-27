@@ -6,12 +6,13 @@ class Settings(BaseSettings):
     POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
     POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "password")
     POSTGRES_SERVER: str = os.getenv("POSTGRES_SERVER", "localhost")
-    POSTGRES_DB: str = os.getenv("POSTGRES_DB", "financial_analyzer")
+    POSTGRES_DB: str = "financial_analyzer"
+    DATABASE_URL: str | None = None
     
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> str:
-        db_url = os.getenv("DATABASE_URL")
-        if db_url:
+        if self.DATABASE_URL:
+            db_url = self.DATABASE_URL
             if db_url.startswith("postgres://"):
                 db_url = db_url.replace("postgres://", "postgresql://", 1)
             return db_url
@@ -26,6 +27,6 @@ class Settings(BaseSettings):
     
     class Config:
         extra = "ignore"
-        env_file = "../.env"
+        env_file = ".env" if os.path.exists(".env") else "../.env"
 
 settings = Settings()
