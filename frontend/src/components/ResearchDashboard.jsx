@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
 import { Search, Loader2, Activity, Shield, TrendingUp, DollarSign, LineChart as LineChartIcon, Users, Building, MessageSquare, Briefcase } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000/api/v1`;
+const API_BASE = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8002/api/v1`;
 
 const MODULES = [
   { id: 'business', title: 'Business Analysis', icon: Briefcase, color: 'bg-blue-500' },
@@ -80,12 +81,20 @@ export default function ResearchDashboard() {
               [moduleId]: { loading: false, data: '', error: parsed.error }
             }));
             eventSource.close();
+          } else if (parsed.clear) {
+            setModuleStates(prev => ({
+              ...prev,
+              [moduleId]: {
+                ...prev[moduleId],
+                data: ''
+              }
+            }));
           } else if (parsed.content) {
             setModuleStates(prev => ({
               ...prev,
-              [moduleId]: { 
-                ...prev[moduleId], 
-                data: prev[moduleId].data + parsed.content 
+              [moduleId]: {
+                ...prev[moduleId],
+                data: prev[moduleId].data + parsed.content
               }
             }));
           }
@@ -107,7 +116,7 @@ export default function ResearchDashboard() {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      
+
       {/* Search Header */}
       <div className="brutalist-panel p-8 text-center bg-[#F2EBE3]">
         <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter mb-4 leading-none">
@@ -131,12 +140,12 @@ export default function ResearchDashboard() {
               <Loader2 className="absolute right-4 animate-spin text-brutalist-orange" size={24} />
             )}
           </div>
-          
+
           {/* Dropdown */}
           {showDropdown && searchResults.length > 0 && (
             <div className="absolute top-full mt-2 left-0 w-full bg-white border-4 border-brutalist-dark shadow-[8px_8px_0px_0px_#1A1A1A] z-50 max-h-80 overflow-y-auto">
               {searchResults.map((company) => (
-                <div 
+                <div
                   key={company.symbol}
                   onClick={() => handleSelectCompany(company)}
                   className="p-4 border-b-2 border-brutalist-dark hover:bg-brutalist-orange hover:text-white cursor-pointer transition-colors text-left flex justify-between items-center group"
@@ -179,7 +188,7 @@ export default function ResearchDashboard() {
             {MODULES.map((mod) => {
               const state = moduleStates[mod.id] || { loading: false, data: null, error: null };
               const Icon = mod.icon;
-              
+
               return (
                 <div key={mod.id} className="brutalist-card flex flex-col bg-white overflow-hidden max-h-[600px]">
                   {/* Header */}
@@ -198,7 +207,7 @@ export default function ResearchDashboard() {
                       <div className="h-40 flex flex-col items-center justify-center text-center p-4">
                         <Icon size={48} className="text-brutalist-dark/10 mb-4" />
                         <p className="font-mono text-xs font-bold text-brutalist-dark/50 uppercase tracking-widest mb-4">Ready for Analysis</p>
-                        <button 
+                        <button
                           onClick={() => analyzeModule(mod.id)}
                           className="brutalist-button px-6 py-2 text-sm bg-brutalist-orange text-brutalist-dark w-full"
                         >
@@ -206,7 +215,7 @@ export default function ResearchDashboard() {
                         </button>
                       </div>
                     )}
-                    
+
                     {state.loading && !state.data && (
                       <div className="h-40 flex flex-col items-center justify-center">
                         <Loader2 className="animate-spin text-brutalist-orange mb-4" size={40} />
@@ -222,16 +231,18 @@ export default function ResearchDashboard() {
 
                     {state.data && (
                       <div className="font-sans">
-                        <ReactMarkdown 
+                        <ReactMarkdown
+                          rehypePlugins={[rehypeRaw]}
                           components={{
-                            h1: ({node, ...props}) => <h1 className="text-xl font-black uppercase border-b-2 border-brutalist-dark pb-2 mb-4" {...props} />,
-                            h2: ({node, ...props}) => <h2 className="text-lg font-black uppercase text-brutalist-dark mt-6 mb-3" {...props} />,
-                            h3: ({node, ...props}) => <h3 className="text-base font-bold uppercase tracking-wider text-brutalist-dark mt-4 mb-2" {...props} />,
-                            p: ({node, ...props}) => <p className="mb-4 text-brutalist-dark leading-relaxed font-medium" {...props} />,
-                            ul: ({node, ...props}) => <ul className="list-square pl-5 mb-4 space-y-1 marker:text-brutalist-orange font-medium" {...props} />,
-                            li: ({node, ...props}) => <li className="text-brutalist-dark" {...props} />,
-                            strong: ({node, ...props}) => <strong className="font-black bg-stone-200 px-1" {...props} />,
-                            blockquote: ({node, ...props}) => <blockquote className="border-l-4 border-brutalist-orange pl-4 italic font-medium my-4 bg-stone-100 py-2" {...props} />
+                            h1: ({ node, ...props }) => <h1 className="text-xl font-black uppercase border-b-2 border-brutalist-dark pb-2 mb-4" {...props} />,
+                            h2: ({ node, ...props }) => <h2 className="text-lg font-black uppercase text-brutalist-dark mt-6 mb-3" {...props} />,
+                            h3: ({ node, ...props }) => <h3 className="text-base font-bold uppercase tracking-wider text-brutalist-dark mt-4 mb-2" {...props} />,
+                            p: ({ node, ...props }) => <p className="mb-4 text-brutalist-dark leading-relaxed font-medium" {...props} />,
+                            ul: ({ node, ...props }) => <ul className="list-square pl-5 mb-4 space-y-1 marker:text-brutalist-orange font-medium" {...props} />,
+                            li: ({ node, ...props }) => <li className="text-brutalist-dark" {...props} />,
+                            strong: ({ node, ...props }) => <strong className="font-black bg-stone-200 px-1" {...props} />,
+                            blockquote: ({ node, ...props }) => <blockquote className="border-l-4 border-brutalist-orange pl-4 italic font-medium my-4 bg-stone-100 py-2" {...props} />,
+                            a: ({ node, ...props }) => <a className="text-blue-600 underline hover:text-blue-800" target="_blank" rel="noopener noreferrer" {...props} />
                           }}
                         >
                           {state.data}
@@ -240,16 +251,16 @@ export default function ResearchDashboard() {
                       </div>
                     )}
                   </div>
-                  
+
                   {/* Action Bar (when data exists) */}
                   {state.data && (
                     <div className="p-2 border-t-4 border-brutalist-dark bg-white shrink-0">
-                      <button 
-                          onClick={() => analyzeModule(mod.id)}
-                          disabled={state.loading}
-                          className="w-full text-xs font-bold font-mono uppercase tracking-widest py-2 hover:bg-stone-100 disabled:opacity-50 transition-colors"
-                        >
-                          {state.loading ? 'Generating...' : 'Regenerate Analysis'}
+                      <button
+                        onClick={() => analyzeModule(mod.id)}
+                        disabled={state.loading}
+                        className="w-full text-xs font-bold font-mono uppercase tracking-widest py-2 hover:bg-stone-100 disabled:opacity-50 transition-colors"
+                      >
+                        {state.loading ? 'Generating...' : 'Regenerate Analysis'}
                       </button>
                     </div>
                   )}

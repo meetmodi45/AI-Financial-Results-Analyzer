@@ -17,6 +17,7 @@ class BaseResearchAgent:
         self.primary_llm = ChatGoogleGenerativeAI(
             model="gemini-2.0-flash", 
             temperature=0.2,
+            max_tokens=1000,
             api_key=settings.GEMINI_API_KEY or settings.GOOGLE_API_KEY
         )
         
@@ -24,6 +25,7 @@ class BaseResearchAgent:
         self.fallback_llm = ChatGroq(
             model="llama-3.3-70b-versatile", 
             temperature=0.2,
+            max_tokens=1000,
             api_key=settings.GROQ_API_KEY
         )
         
@@ -67,6 +69,12 @@ class BaseResearchAgent:
         #         yield "data: [DONE]\n\n"
         #         return
 
+        # Send an initial response to clear the frontend loader and indicate progress
+        import json
+        initial_msg = {'content': '*(Fetching latest financial data from Yahoo Finance...)*\n\n'}
+        yield f"data: {json.dumps(initial_msg)}\n\n"
+        await asyncio.sleep(0.1)  # Flush stream immediately
+        
         # Fetch required data concurrently
         data = await self.fetch_data(symbol, db)
         
@@ -78,6 +86,9 @@ class BaseResearchAgent:
             SystemMessage(content=system_prompt),
             HumanMessage(content=human_prompt)
         ]
+        
+        # Send a clear command to the frontend to erase the loading message
+        yield f"data: {json.dumps({'clear': True})}\n\n"
         
         # Stream the response
         full_response = ""
@@ -118,3 +129,25 @@ class BaseResearchAgent:
         #         db.rollback()
         
         yield "data: [DONE]\n\n"
+    async def analyze(self, symbol: str, module_name: str, db: Session) -> str:
+            """
+            Non-streaming version: returns the complete analysis as a plain string.
+            Used by the JSON endpoint to avoid SSE/nginx buffering issues on Render.
+            """
+            data = await self.fetch_data(symbol, db)
+
+            system_prompt = "You are a Senior Equity Research Analyst at a top-tier institutional firm."
+            human_prompt = self.get_prompt_template().format(**data, symbol=symbol)
+
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=human_prompt)
+            ]
+
+            try:
+                response = await self.primary_llm.ainvoke(messages)
+                return response.content
+            except Exception as primary_e:
+                print(f"Primary LLM failed ({primary_e}). Triggering Groq fallback...")
+                response = await self.fallback_llm.ainvoke(messages)
+                return response.content

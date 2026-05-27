@@ -120,3 +120,23 @@ app.include_router(equity_research.router, prefix="/api/v1/equity-research")
 def read_root():
     return {"message": "AI Financial Results Analyzer API is running"}
 
+@app.get("/api/v1/debug/yahoo")
+def debug_yahoo():
+    import requests
+    from app.services.fmp_client import yf_session
+    try:
+        response = yf_session.get("https://query1.finance.yahoo.com/v8/finance/chart/RELIANCE.NS", timeout=10)
+        return {
+            "status_code": response.status_code,
+            "headers": dict(response.headers),
+            "body_snippet": response.text[:500],
+            "error": None
+        }
+    except Exception as e:
+        return {
+            "status_code": 500,
+            "headers": {},
+            "body_snippet": "",
+            "error": str(e)
+        }
+

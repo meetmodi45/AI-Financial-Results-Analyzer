@@ -10,7 +10,7 @@ PyMuPDF
 pdfplumber
 scikit-learn
 python-dotenv
-pandas
+pandas>=2.0.0
 numpy
 langchain
 langchain-groq
@@ -19,6 +19,7 @@ langchain-pinecone>=0.2.0
 pinecone
 langchain-text-splitters
 nltk
-yfinance
+yfinance>=0.2.37
 httpx
 langchain-google-genai
+requests>=2.31.0
