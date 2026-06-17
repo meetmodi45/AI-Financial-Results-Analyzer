@@ -45,6 +45,8 @@ function parseApiError(e, fallback = "Something went wrong. Please try again.") 
 
 function App() {
   const [file, setFile] = useState(null);
+  const [financialUrl, setFinancialUrl] = useState("");
+  const [financialUploadType, setFinancialUploadType] = useState("file");
   const [documentId, setDocumentId] = useState(null);
   const [statusData, setStatusData] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -54,6 +56,8 @@ function App() {
 
   // Concall Ingestion States
   const [concallFile, setConcallFile] = useState(null);
+  const [concallUrl, setConcallUrl] = useState("");
+  const [concallUploadType, setConcallUploadType] = useState("file");
   const [concallCompanyName, setConcallCompanyName] = useState("");
   const [concallSector, setConcallSector] = useState("");
   const [concallQuarter, setConcallQuarter] = useState("Q4");
@@ -281,9 +285,15 @@ function App() {
   };
 
   const uploadFile = async () => {
-    if (!file) return;
+    if (financialUploadType === "file" && !file) return;
+    if (financialUploadType === "url" && !financialUrl) return;
+
     const formData = new FormData();
-    formData.append("file", file);
+    if (financialUploadType === "file") {
+      formData.append("file", file);
+    } else {
+      formData.append("url", financialUrl);
+    }
 
     try {
       const res = await axios.post(`${API_BASE}/upload`, formData, {
@@ -299,15 +309,23 @@ function App() {
 
   const uploadConcall = async (e) => {
     e.preventDefault();
-    if (!concallFile) {
+    if (concallUploadType === "file" && !concallFile) {
       setConcallError("Please select a file.");
+      return;
+    }
+    if (concallUploadType === "url" && !concallUrl) {
+      setConcallError("Please provide a URL.");
       return;
     }
     setConcallError(null);
     setIsConcallUploading(true);
 
     const formData = new FormData();
-    formData.append("file", concallFile);
+    if (concallUploadType === "file") {
+      formData.append("file", concallFile);
+    } else {
+      formData.append("url", concallUrl);
+    }
     formData.append("company_name", concallCompanyName || "Unknown");
     formData.append("sector", concallSector || "General Corporate");
     formData.append("quarter", concallQuarter || "Q4");
@@ -445,33 +463,60 @@ function App() {
                 <div className="brutalist-panel p-8 h-full flex flex-col">
                   <h2 className="text-lg font-black uppercase tracking-tight text-brutalist-dark mb-4 flex items-center gap-2">
                     <FileText className="text-brutalist-orange" size={24} strokeWidth={3} />
-                    Upload Results PDF
+                    Provide Results PDF
                   </h2>
-
-                  <div
-                    className={`flex-1 border-4 border-dashed border-brutalist-dark rounded-none flex flex-col items-center justify-center p-8 transition-all duration-300 ${isDragging ? 'bg-brutalist-orange/20' : 'bg-white hover:bg-stone-50'
-                      }`}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                  >
-                    <Upload className={`mb-4 ${isDragging ? 'text-brutalist-orange' : 'text-brutalist-dark'}`} size={40} strokeWidth={2} />
-                    <label className="cursor-pointer brutalist-button px-6 py-2 text-sm">
-                      Upload Financial Results PDF here
-                      <input type="file" className="hidden" accept="application/pdf" onChange={(e) => handleFileSelection(e.target.files[0])} />
-                    </label>
-                    {file && (
-                      <div className="mt-6 text-sm font-bold text-brutalist-green bg-brutalist-green/10 border-2 border-brutalist-green px-4 py-2 rounded-none truncate max-w-full">
-                        {file.name}
-                      </div>
-                    )}
+                  
+                  <div className="flex gap-2 mb-4">
+                    <button
+                      onClick={() => setFinancialUploadType("file")}
+                      className={`flex-1 py-2 text-xs font-bold font-mono uppercase border-2 border-brutalist-dark ${financialUploadType === "file" ? "bg-brutalist-dark text-white" : "bg-white text-brutalist-dark hover:bg-stone-100"}`}
+                    >
+                      Upload File
+                    </button>
+                    <button
+                      onClick={() => setFinancialUploadType("url")}
+                      className={`flex-1 py-2 text-xs font-bold font-mono uppercase border-2 border-brutalist-dark ${financialUploadType === "url" ? "bg-brutalist-dark text-white" : "bg-white text-brutalist-dark hover:bg-stone-100"}`}
+                    >
+                      Enter URL
+                    </button>
                   </div>
+
+                  {financialUploadType === "file" ? (
+                    <div
+                      className={`flex-1 border-4 border-dashed border-brutalist-dark rounded-none flex flex-col items-center justify-center p-8 transition-all duration-300 ${isDragging ? 'bg-brutalist-orange/20' : 'bg-white hover:bg-stone-50'
+                        }`}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                    >
+                      <Upload className={`mb-4 ${isDragging ? 'text-brutalist-orange' : 'text-brutalist-dark'}`} size={40} strokeWidth={2} />
+                      <label className="cursor-pointer brutalist-button px-6 py-2 text-sm">
+                        Upload Financial Results PDF here
+                        <input type="file" className="hidden" accept="application/pdf" onChange={(e) => handleFileSelection(e.target.files[0])} />
+                      </label>
+                      {file && (
+                        <div className="mt-6 text-sm font-bold text-brutalist-green bg-brutalist-green/10 border-2 border-brutalist-green px-4 py-2 rounded-none truncate max-w-full">
+                          {file.name}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex-1 border-4 border-dashed border-brutalist-dark rounded-none flex flex-col items-center justify-center p-8 bg-white">
+                      <input
+                        type="url"
+                        placeholder="https://example.com/results.pdf"
+                        value={financialUrl}
+                        onChange={(e) => setFinancialUrl(e.target.value)}
+                        className="w-full p-4 border-2 border-brutalist-dark focus:outline-none focus:ring-2 focus:ring-brutalist-orange font-mono text-sm"
+                      />
+                    </div>
+                  )}
 
                   {error && <div className="mt-4 text-brutalist-orange font-bold text-sm flex items-center gap-2 uppercase tracking-wide border-2 border-brutalist-orange p-2"><AlertTriangle size={20} /> {error}</div>}
 
                   <button
                     onClick={uploadFile}
-                    disabled={!file || (statusData && !['FAILED', 'COMPLETED'].includes(statusData.status))}
+                    disabled={(financialUploadType === 'file' ? !file : !financialUrl) || (statusData && !['FAILED', 'COMPLETED'].includes(statusData.status))}
                     className="mt-6 w-full py-4 px-4 brutalist-button disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-[4px_4px_0px_0px_#1A1A1A]"
                   >
                     {statusData && !['FAILED', 'COMPLETED'].includes(statusData.status) ? 'Processing...' : 'Analyze Document'}
@@ -1236,6 +1281,36 @@ function App() {
                       ))}
                     </ul>
                   </div>
+
+                  {/* Capital Allocation & CapEx */}
+                  {concallStatusData.summary_data.capital_allocation && concallStatusData.summary_data.capital_allocation.length > 0 && (
+                    <div className="border-4 border-brutalist-dark p-6 bg-[#FDFBF7] shadow-[4px_4px_0px_0px_#1A1A1A] md:col-span-2">
+                      <h3 className="font-black text-lg text-white bg-[#1A1A1A] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Capital Allocation & Balance Sheet</h3>
+                      <ul className="space-y-3">
+                        {concallStatusData.summary_data.capital_allocation.map((item, idx) => (
+                          <li key={idx} className="flex items-start gap-3">
+                            <Activity className="text-[#1A1A1A] shrink-0 mt-0.5" size={20} strokeWidth={2.5} />
+                            <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Strategic Initiatives */}
+                  {concallStatusData.summary_data.strategic_initiatives && concallStatusData.summary_data.strategic_initiatives.length > 0 && (
+                    <div className="border-4 border-brutalist-dark p-6 bg-[#FDFBF7] shadow-[4px_4px_0px_0px_#1A1A1A] md:col-span-2">
+                      <h3 className="font-black text-lg text-white bg-[#5C4033] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Strategic Initiatives & Macro Comments</h3>
+                      <ul className="space-y-3">
+                        {concallStatusData.summary_data.strategic_initiatives.map((item, idx) => (
+                          <li key={idx} className="flex items-start gap-3">
+                            <CheckCircle className="text-[#5C4033] shrink-0 mt-0.5" size={20} strokeWidth={2.5} />
+                            <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
               </div>
@@ -1276,15 +1351,44 @@ function App() {
                     <input type="text" placeholder="Financial Year (e.g. FY26)" value={concallFiscalYear} onChange={e => setConcallFiscalYear(e.target.value)} className="border-2 border-black p-3 font-mono text-sm outline-none focus:bg-stone-100" required />
                   </div>
 
-                  <label className="cursor-pointer border-2 border-dashed border-black p-4 text-center font-bold uppercase font-mono text-sm hover:bg-black/5 transition-colors">
-                    {concallFile ? concallFile.name : "DROP EARNINGS CALL PDF HERE OR CLICK TO UPLOAD"}
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept="application/pdf, text/plain"
-                      onChange={(e) => setConcallFile(e.target.files[0])}
-                    />
-                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setConcallUploadType("file")}
+                      className={`flex-1 py-2 text-xs font-bold font-mono uppercase border-2 border-black ${concallUploadType === "file" ? "bg-black text-white" : "bg-white text-black hover:bg-black/5"}`}
+                    >
+                      Upload File
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConcallUploadType("url")}
+                      className={`flex-1 py-2 text-xs font-bold font-mono uppercase border-2 border-black ${concallUploadType === "url" ? "bg-black text-white" : "bg-white text-black hover:bg-black/5"}`}
+                    >
+                      Enter URL
+                    </button>
+                  </div>
+
+                  {concallUploadType === "file" ? (
+                    <label className="cursor-pointer border-2 border-dashed border-black p-4 text-center font-bold uppercase font-mono text-sm hover:bg-black/5 transition-colors">
+                      {concallFile ? concallFile.name : "DROP EARNINGS CALL PDF HERE OR CLICK TO UPLOAD"}
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="application/pdf, text/plain"
+                        onChange={(e) => setConcallFile(e.target.files[0])}
+                      />
+                    </label>
+                  ) : (
+                    <div className="border-2 border-dashed border-black p-4 bg-white flex items-center justify-center">
+                      <input
+                        type="url"
+                        placeholder="https://example.com/concall.pdf"
+                        value={concallUrl}
+                        onChange={(e) => setConcallUrl(e.target.value)}
+                        className="w-full p-2 border-2 border-black focus:outline-none focus:bg-stone-100 font-mono text-sm"
+                      />
+                    </div>
+                  )}
 
                   {concallError && (
                     <div className="text-[#FF6B6B] font-bold text-xs uppercase flex items-center gap-2 mt-2">

@@ -266,58 +266,35 @@ async def get_key_metrics(symbol: str, db: Session):
     }]
 
 async def get_company_news(symbol: str, db: Session):
-    import urllib.request
-    import xml.etree.ElementTree as ET
-    import urllib.parse
-    import asyncio
-    from email.utils import parsedate_to_datetime
-    from app.models.equity_research import Company
+    data = await fetch_indianapi_data(symbol, db)
+    if not data:
+        return []
+        
+    recent_news = data.get("recentNews", [])
+    news_items = []
     
-    clean_symbol = symbol.replace(".NS", "")
-    
-    company = db.query(Company).filter(Company.symbol == clean_symbol).first()
-    search_name = company.name if company else clean_symbol
-    search_name = search_name.replace(" Ltd.", "").replace(" Limited", "").replace(" Ltd", "").strip()
-    
-    query = urllib.parse.quote(f"{search_name}")
-    url = f"https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&ceid=IN:en"
-    
-    def fetch():
-        try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=10) as response:
-                xml_data = response.read()
-                
-            root = ET.fromstring(xml_data)
-            news_items = []
+    for item in recent_news[:10]:
+        title = item.get("headline", "")
+        pubDate_str = item.get("lastPublishedDate", "")
+        source = item.get("source") or "LiveMint"
+        url_path = item.get("metadata", {}).get("url", "")
+        
+        if url_path and url_path.startswith("/"):
+            link = f"https://www.livemint.com{url_path}"
+        else:
+            link = url_path or ""
             
-            for item in root.findall('.//item')[:15]:
-                title = item.find('title').text if item.find('title') is not None else ""
-                pubDate_str = item.find('pubDate').text if item.find('pubDate') is not None else ""
-                source = item.find('source').text if item.find('source') is not None else ""
-                link = item.find('link').text if item.find('link') is not None else ""
-                
-                try:
-                    dt = parsedate_to_datetime(pubDate_str)
-                    timestamp = dt.timestamp()
-                except:
-                    timestamp = 0
-                    
-                news_items.append({
-                    "title": title,
-                    "date": pubDate_str,
-                    "source": source,
-                    "link": link,
-                    "_timestamp": timestamp
-                })
-                
-            news_items.sort(key=lambda x: x["_timestamp"], reverse=True)
-            for item in news_items: del item["_timestamp"]
-            return news_items[:10]
-        except Exception as e:
-            return []
+        if not title:
+            continue
             
-    return await asyncio.to_thread(fetch)
+        news_items.append({
+            "title": title,
+            "date": pubDate_str,
+            "source": source,
+            "link": link
+        })
+        
+    return news_items
 
 async def get_technical_data(symbol: str, db: Session):
     data = await fetch_indianapi_data(symbol, db)

@@ -3,12 +3,13 @@ import uuid
 import logging
 import traceback
 from typing import Dict
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 import fitz  # PyMuPDF
 from app.core.db import get_db
 from app.models.document import Document, ProcessingStatus
 from app.core.pipeline import run_extraction_pipeline
+from app.utils.download_utils import get_pdf_from_upload_or_url
 
 logger = logging.getLogger(__name__)
 
@@ -19,18 +20,21 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 logger.info(f"[Agent 1] Upload directory resolved to: {UPLOAD_DIR}")
 
 @router.post("/upload")
-async def upload_document(background_tasks: BackgroundTasks, file: UploadFile = File(...), db: Session = Depends(get_db)) -> Dict:
+async def upload_document(
+    background_tasks: BackgroundTasks, 
+    file: UploadFile = File(None), 
+    url: str = Form(None), 
+    db: Session = Depends(get_db)
+) -> Dict:
     """
     Agent 1: Document Ingestion Agent
     """
-    if file.content_type != "application/pdf":
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+    contents, original_filename = await get_pdf_from_upload_or_url(file, url)
 
     document_id = str(uuid.uuid4())
     file_path = os.path.join(UPLOAD_DIR, f"{document_id}.pdf")
 
     # Store raw file
-    contents = await file.read()
     with open(file_path, "wb") as f:
         f.write(contents)
 
@@ -59,7 +63,7 @@ async def upload_document(background_tasks: BackgroundTasks, file: UploadFile = 
     # Database record creation
     new_doc = Document(
         id=document_id,
-        filename=file.filename,
+        filename=original_filename,
         file_size=file_size,
         processing_status=ProcessingStatus.UPLOADED,
         metadata_json={
@@ -86,7 +90,7 @@ async def upload_document(background_tasks: BackgroundTasks, file: UploadFile = 
 
     return {
         "document_id": document_id,
-        "filename": file.filename,
+        "filename": original_filename,
         "file_size": file_size,
         "total_pages": total_pages,
         "status": new_doc.processing_status

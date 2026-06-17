@@ -18,10 +18,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+from app.utils.download_utils import get_pdf_from_upload_or_url
+
 @router.post("/upload-and-process")
 async def upload_and_process_concall(
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
+    file: UploadFile = File(None),
+    url: str = Form(None),
     company_name: str = Form("Unknown"),
     sector: str = Form("Unknown"),
     quarter: str = Form("Q4"),
@@ -34,13 +37,7 @@ async def upload_and_process_concall(
     quarter = quarter.strip().upper()
     fiscal_year = fiscal_year.strip().upper()
 
-    # Read file entirely into memory first so we can hash it
-    try:
-        file_bytes = await file.read()
-        filename = file.filename or "upload.pdf"
-    except Exception as e:
-        logger.error(f"Failed to read uploaded file {file.filename}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to read uploaded file")
+    file_bytes, filename = await get_pdf_from_upload_or_url(file, url)
 
     # Calculate SHA-256 hash of the file contents
     file_hash = hashlib.sha256(file_bytes).hexdigest()

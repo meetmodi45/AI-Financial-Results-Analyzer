@@ -1689,7 +1689,7 @@ export default function ResearchDashboard() {
               const isSpecialModule = ['financials', 'technical', 'moat', 'news', 'business'].includes(mod.id);
 
               return (
-                <div key={mod.id} className="brutalist-card flex flex-col bg-white overflow-hidden max-h-[620px]">
+                <div key={`${mod.id}-${selectedCompany.symbol}`} className="brutalist-card flex flex-col bg-white overflow-hidden max-h-[620px]">
                   {/* Header */}
                   <div className="p-4 border-b-4 border-brutalist-dark flex justify-between items-center bg-stone-100 shrink-0">
                     <div className="flex items-center gap-3">

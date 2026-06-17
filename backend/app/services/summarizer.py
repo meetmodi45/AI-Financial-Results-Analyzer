@@ -88,10 +88,7 @@ BAD example (do not do this):
   "Revenue grew 8%"
 
 GOOD example (do this):
-  "Revenue grew 8% YoY to INR 4,200 Cr, driven by
-   volume growth in the south India market and a 3%
-   price increase taken in January; management guided
-   this run rate to sustain in Q1 FY27"
+  "Rev +8% YoY to INR 4.2k Cr driven by South India vol & 3% Jan price hike; guided to sustain in Q1 FY27"
 
 Return this EXACT JSON structure:
 {{
@@ -100,21 +97,28 @@ Return this EXACT JSON structure:
   "sector":   "{SECTOR}",
 
   "positive": [
-    "Max 4 items. Each item must contain a specific number or metric AND the reason management gave. Focus on outperformance, margin expansion, growth acceleration, market share gains, successful new initiatives."
+    "Max 8 items. Each item must contain a specific metric OR a critical strategic insight AND the reason management gave. Focus on outperformance, margin expansion, growth acceleration, market share gains, successful new initiatives."
   ],
   "negative": [
-    "Max 4 items. Each item must contain a specific number or metric AND the concern or reason. Focus on misses, elevated costs, stress in any segment, deteriorating ratios, competitive pressure management acknowledged."
+    "Max 8 items. Each item must contain a specific metric OR a critical strategic insight AND the concern or reason. Focus on misses, elevated costs, stress in any segment, deteriorating ratios, competitive pressure management acknowledged."
   ],
   "guidance": [
-    "Max 4 items. ONLY include explicit forward commitments. Must have a timeframe and a number or directional target. Do NOT include vague optimism like we are optimistic about growth. Only hard commitments with conditions."
+    "Max 6 items. ONLY include explicit forward commitments. Must have a timeframe and a number or directional target. Do NOT include vague optimism like we are optimistic about growth. Only hard commitments with conditions."
   ],
   "key_risks_to_watch": [
-    "Max 3 items. Risks management mentioned but did not fully resolve. Things that could invalidate the guidance if they worsen. Include the trigger condition."
+    "Max 6 items. Risks management mentioned but did not fully resolve. Things that could invalidate the guidance if they worsen. Include the trigger condition."
+  ],
+  "capital_allocation": [
+    "Max 4 items. Specific details on CapEx, debt repayment, dividend payouts, share buybacks, or M&A activities."
+  ],
+  "strategic_initiatives": [
+    "Max 6 items. Important macro commentary, demand environment updates, pricing leverage, new product pipelines, or Q&A pushback themes."
   ]
 }}
 
 Rules:
-- If management did not give a number for a point, do not include that point.
+- Be concise (around 20-30 words per point). Use abbreviations (e.g., Rev, Vol, Mgmt, YoY) to save space and remove filler words, but ALWAYS preserve the context and the 'why' (the reason/driver behind the metric).
+- If management gave a number for a point, include it. Otherwise, include the point if it is a critical strategic insight.
 - Preserve the causality — never separate a result from its reason in the same point.
 - Guidance must have a timeframe or it is not guidance.
 - key_risks_to_watch is for open-ended concerns only.
@@ -215,9 +219,9 @@ class ConcallSummarizer:
             from sklearn.feature_extraction.text import TfidfVectorizer
             from sklearn.metrics.pairwise import cosine_similarity
         except ImportError as e:
-            logger.error(f"scikit-learn not available, falling back to first 40% of sentences: {e}")
+            logger.error(f"scikit-learn not available, falling back to first 80% of sentences: {e}")
             sentences_fallback = self._clean_text(transcript)
-            return "\n".join(sentences_fallback[:max(1, int(len(sentences_fallback) * 0.4))])
+            return "\n".join(sentences_fallback[:max(1, int(len(sentences_fallback) * 0.8))])
 
         if self._vectorizer is None:
             self._vectorizer = TfidfVectorizer(ngram_range=(1, 3), stop_words='english')
@@ -242,7 +246,7 @@ class ConcallSummarizer:
         try:
             X = self._vectorizer.fit_transform(corpus)
         except ValueError:
-            return "\n".join(sentences[:int(len(sentences)*0.4)])
+            return "\n".join(sentences[:int(len(sentences)*0.8)])
             
         # X[0] is positive_corpus vector, X[1] is negative_corpus vector
         # X[2:] are the sentences
@@ -263,8 +267,8 @@ class ConcallSummarizer:
         # Sort by score descending
         final_scores.sort(key=lambda x: x[0], reverse=True)
         
-        # Keep top 40%
-        keep_count = max(1, int(len(sentences) * 0.40))
+        # Keep top 80%
+        keep_count = max(1, int(len(sentences) * 0.80))
         top_sentences = final_scores[:keep_count]
         
         # Re-sort by original index to maintain chronological order
@@ -302,5 +306,7 @@ class ConcallSummarizer:
                 "positive": [],
                 "negative": [],
                 "guidance": [],
-                "key_risks_to_watch": []
+                "key_risks_to_watch": [],
+                "capital_allocation": [],
+                "strategic_initiatives": []
             }
