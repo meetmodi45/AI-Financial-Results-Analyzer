@@ -3,6 +3,8 @@ import json
 import httpx
 import logging
 import asyncio
+import xml.etree.ElementTree as ET
+from urllib.parse import quote_plus
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.models.equity_research import APICache
@@ -265,36 +267,178 @@ async def get_key_metrics(symbol: str, db: Session):
         "marketCap": val_data.get("marketCap") / 10000000.0 if val_data.get("marketCap") else None
     }]
 
-async def get_company_news(symbol: str, db: Session):
-    data = await fetch_indianapi_data(symbol, db)
-    if not data:
+async def _fetch_google_news_rss(query: str, days: int = 7) -> list:
+    """
+    Fetch latest news via Google News RSS — no API key, always live.
+    Restricts to `days` recent days and sorts results by pubDate descending
+    so the freshest articles always appear first.
+    """
+    # `when:Nd` tells Google News to only return articles from the last N days
+    full_query = f"{query} when:{days}d"
+    encoded_query = quote_plus(full_query)
+    rss_url = (
+        f"https://news.google.com/rss/search"
+        f"?q={encoded_query}&hl=en-IN&gl=IN&ceid=IN:en"
+    )
+    try:
+        async with httpx.AsyncClient(
+            headers={"User-Agent": "Mozilla/5.0"},
+            follow_redirects=True,
+            timeout=15,
+        ) as client:
+            resp = await client.get(rss_url)
+            if resp.status_code != 200:
+                logger.warning(f"[News/GNews] RSS returned {resp.status_code} for query '{query}'")
+                return []
+
+        root = ET.fromstring(resp.text)
+        channel = root.find("channel")
+        if channel is None:
+            return []
+
+        items = []
+        for item in channel.findall("item"):
+            title  = (item.findtext("title") or "").strip()
+            link   = (item.findtext("link")  or "").strip()
+            pub    = (item.findtext("pubDate") or "").strip()
+            src_el = item.find("source")
+            source = src_el.text.strip() if src_el is not None and src_el.text else "Google News"
+
+            if not title:
+                continue
+
+            # Parse pubDate so we can sort by it
+            pub_dt = None
+            for fmt in ("%a, %d %b %Y %H:%M:%S %Z", "%a, %d %b %Y %H:%M:%S %z"):
+                try:
+                    pub_dt = datetime.strptime(pub, fmt)
+                    break
+                except ValueError:
+                    pass
+
+            items.append({
+                "title": title,
+                "link": link,
+                "date": pub,
+                "_pub_dt": pub_dt or datetime.min,
+                "source": source,
+            })
+
+        # Sort newest first
+        items.sort(key=lambda x: x["_pub_dt"], reverse=True)
+        # Remove internal sort key before returning
+        for item in items:
+            item.pop("_pub_dt", None)
+
+        return items
+    except Exception as e:
+        logger.warning(f"[News/GNews] Failed for query '{query}': {e}")
         return []
-        
-    recent_news = data.get("recentNews", [])
-    news_items = []
-    
-    for item in recent_news[:10]:
-        title = item.get("headline", "")
-        pubDate_str = item.get("lastPublishedDate", "")
-        source = item.get("source") or "LiveMint"
-        url_path = item.get("metadata", {}).get("url", "")
-        
-        if url_path and url_path.startswith("/"):
-            link = f"https://www.livemint.com{url_path}"
-        else:
-            link = url_path or ""
-            
-        if not title:
-            continue
-            
-        news_items.append({
-            "title": title,
-            "date": pubDate_str,
-            "source": source,
-            "link": link
-        })
-        
-    return news_items
+
+
+
+async def _fetch_indianapi_news_fallback(symbol: str) -> list:
+    """
+    Fallback: extract recentNews from IndianAPI /stock endpoint.
+    Only used when Google News returns nothing.
+    """
+    clean_symbol = symbol.replace(".NS", "").replace(".BO", "")
+    headers = {"X-API-Key": INDIAN_API_KEY}
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://stock.indianapi.in/stock",
+                params={"name": clean_symbol},
+                headers=headers,
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                raw = resp.json().get("recentNews") or []
+                items = []
+                for item in raw:
+                    if not isinstance(item, dict):
+                        continue
+                    title = item.get("headline") or item.get("title") or ""
+                    pub   = item.get("lastPublishedDate") or item.get("date") or ""
+                    source = item.get("source") or "LiveMint"
+                    url_path = item.get("metadata", {}).get("url") if isinstance(item.get("metadata"), dict) else ""
+                    url_direct = item.get("url") or item.get("link") or ""
+                    if url_path and url_path.startswith("/"):
+                        link = f"https://www.livemint.com{url_path}"
+                    else:
+                        link = url_direct
+                    if title:
+                        items.append({"title": title, "date": pub, "source": source, "link": link})
+                return items
+    except Exception as e:
+        logger.warning(f"[News/IndianAPI fallback] Failed for {symbol}: {e}")
+    return []
+
+
+async def _build_news_items(company_name: str, symbol: str, db: Session) -> list:
+    """Core news-fetching logic (no cache). Called by get_company_news after cache miss."""
+    # Start tight (7 days), widen automatically if results are sparse
+    query = f'"{company_name}" NSE'
+    news_items = await _fetch_google_news_rss(query, days=7)
+
+    # Too few in 7 days → widen to 30 days (handles niche/small-cap stocks)
+    if len(news_items) < 3:
+        news_items = await _fetch_google_news_rss(query, days=30)
+
+    # Still too few → try unquoted broader query (catches alternate name spellings)
+    if len(news_items) < 3:
+        query_broad = f"{company_name} NSE stock India"
+        extra = await _fetch_google_news_rss(query_broad, days=30)
+        seen = {n["title"] for n in news_items}
+        for item in extra:
+            if item["title"] not in seen:
+                news_items.append(item)
+                seen.add(item["title"])
+
+    # Last resort: IndianAPI recentNews (may be stale but never crashes)
+    if not news_items:
+        logger.info(f"[News] Google News returned nothing for '{company_name}', trying IndianAPI fallback")
+        news_items = await _fetch_indianapi_news_fallback(symbol)
+
+    return news_items[:10]
+
+
+async def get_company_news(symbol: str, db: Session):
+    """
+    Fetch the latest stock-specific news.
+
+    Cache strategy: 15-minute SQLite cache (existing APICache table).
+    - Prevents hammering Google RSS when multiple users search the same stock
+    - Still fresh enough for financial news (articles don't change in 15 min)
+    - On cache miss → Google News RSS (7d → 30d → broad) → IndianAPI fallback
+    """
+    clean_symbol = symbol.replace(".NS", "").replace(".BO", "")
+
+    # Get real company name from cached IndianAPI data so the RSS query matches
+    # actual article headlines (e.g. "JSW Infrastructure", not "JSWINFRA")
+    company_name = clean_symbol
+    try:
+        stock_data = await fetch_indianapi_data(symbol, db)
+        if stock_data:
+            raw_name = stock_data.get("companyName") or ""
+            if raw_name:
+                for suffix in (" Limited", " Ltd.", " Ltd", " LTD", " LIMITED"):
+                    raw_name = raw_name.replace(suffix, "")
+                company_name = raw_name.strip()
+    except Exception:
+        pass
+
+    # 15-minute cache keyed per company — dramatically reduces Google RSS requests
+    cache_key = f"gnews_15m_{clean_symbol}"
+
+    async def fetch():
+        return await _build_news_items(company_name, symbol, db)
+
+    return await get_cached_or_fetch(db, cache_key, fetch, expiry_hours=0.25)
+
+
+
+
 
 async def get_technical_data(symbol: str, db: Session):
     data = await fetch_indianapi_data(symbol, db)
