@@ -147,7 +147,7 @@ async def chat_with_concall(request: ChatRequest, db: Session = Depends(get_db))
         retrieved_docs = retriever.invoke(request.query)
         context_text = "\n\n".join([d.page_content for d in retrieved_docs])
 
-        llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.2)
+        llm = ChatGroq(model="meta-llama/llama-4-scout-17b-16e-instruct", temperature=0.2)
 
         system_prompt = (
             "You are an expert financial analyst. Answer the user's question about the earnings call transcript "

@@ -104,7 +104,7 @@ def process_tables(document_id: str):
 
         # 2. Invoke LLM Engine
         logger.info("[Agent5] Invoking Groq with structured output...")
-        llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.0)
+        llm = ChatGroq(model="meta-llama/llama-4-scout-17b-16e-instruct", temperature=0.0)
         structured_llm = llm.with_structured_output(FinancialRawSchema)
 
         system_prompt = (

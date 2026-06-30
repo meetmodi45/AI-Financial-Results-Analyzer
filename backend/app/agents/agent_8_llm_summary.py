@@ -35,7 +35,7 @@ def process_llm_summary(document_id: str):
         )
         
         logger.info("[Agent 8] Invoking Groq for LLM Summarization...")
-        llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.2)
+        llm = ChatGroq(model="meta-llama/llama-4-scout-17b-16e-instruct", temperature=0.2)
         structured_llm = llm.with_structured_output(LLMSummarySchema)
         
         system_prompt = (

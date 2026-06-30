@@ -138,7 +138,7 @@ class ConcallSummarizer:
     def __init__(self):
         # We use a cheap, fast model for Stage 1, and the main model for Stage 3
         # Llama 3 is great for strict JSON
-        self.llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
+        self.llm = ChatGroq(model="meta-llama/llama-4-scout-17b-16e-instruct", temperature=0)
         self._vectorizer = None  # Lazily initialized to avoid import-time sklearn crash
 
     def _get_cache_path(self, sector: str) -> str:

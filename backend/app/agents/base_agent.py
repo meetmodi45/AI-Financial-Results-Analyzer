@@ -21,9 +21,9 @@ class BaseResearchAgent:
             api_key=settings.GEMINI_API_KEY or settings.GOOGLE_API_KEY
         )
         
-        # Fallback Model: Groq Llama 3
+        # Fallback Model: Groq Llama 4 Scout (30k TPM free tier)
         self.fallback_llm = ChatGroq(
-            model="llama-3.3-70b-versatile", 
+            model="meta-llama/llama-4-scout-17b-16e-instruct", 
             temperature=0.2,
             max_tokens=1000,
             api_key=settings.GROQ_API_KEY
