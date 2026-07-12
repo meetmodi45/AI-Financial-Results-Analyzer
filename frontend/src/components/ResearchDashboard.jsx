@@ -145,7 +145,7 @@ function FinancialTable({ title, rows, color = 'bg-green-600' }) {
 }
 
 // ─── Financials Module (special — shows tables + lazy LLM summary) ────────────
-function FinancialsModule({ symbol }) {
+function FinancialsModule({ symbol, ensureBackendActive }) {
   const [tablesData, setTablesData] = useState(null);
   const [tablesLoading, setTablesLoading] = useState(false);
   const [tablesError, setTablesError] = useState(null);
@@ -162,6 +162,9 @@ function FinancialsModule({ symbol }) {
     setTablesLoading(true);
     setTablesError(null);
     try {
+      if (ensureBackendActive) {
+        await ensureBackendActive();
+      }
       const res = await axios.get(`${API_BASE}/equity-research/financials-data/${symbol}`);
       setTablesData(res.data);
     } catch (err) {
@@ -365,7 +368,7 @@ function FinancialsModule({ symbol }) {
 }
 
 // ─── Technical Module (special — shows metrics + lazy LLM summary) ─────────────
-function TechnicalModule({ symbol }) {
+function TechnicalModule({ symbol, ensureBackendActive }) {
   const [techData, setTechData] = useState(null);
   const [techLoading, setTechLoading] = useState(false);
   const [techError, setTechError] = useState(null);
@@ -380,6 +383,9 @@ function TechnicalModule({ symbol }) {
     setTechLoading(true);
     setTechError(null);
     try {
+      if (ensureBackendActive) {
+        await ensureBackendActive();
+      }
       const res = await axios.get(`${API_BASE}/equity-research/technical-data/${symbol}`);
       setTechData(res.data);
     } catch (err) {
@@ -626,7 +632,7 @@ function TechnicalModule({ symbol }) {
 }
 
 // ─── Business Module (shows company profile + management + shareholding; lazy LLM deep-dive) ─
-function BusinessModule({ symbol }) {
+function BusinessModule({ symbol, ensureBackendActive }) {
   const [bizData, setBizData] = useState(null);
   const [bizLoading, setBizLoading] = useState(false);
   const [bizError, setBizError] = useState(null);
@@ -641,6 +647,9 @@ function BusinessModule({ symbol }) {
     setBizLoading(true);
     setBizError(null);
     try {
+      if (ensureBackendActive) {
+        await ensureBackendActive();
+      }
       const res = await axios.get(`${API_BASE}/equity-research/business-data/${symbol}`);
       setBizData(res.data);
     } catch (err) {
@@ -891,7 +900,7 @@ function BusinessModule({ symbol }) {
 }
 
 // ─── Moat Module (special — shows core metrics, peers + lazy LLM summary) ──────
-function MoatModule({ symbol }) {
+function MoatModule({ symbol, ensureBackendActive }) {
   const [moatData, setMoatData] = useState(null);
   const [moatLoading, setMoatLoading] = useState(false);
   const [moatError, setMoatError] = useState(null);
@@ -907,6 +916,9 @@ function MoatModule({ symbol }) {
     setMoatLoading(true);
     setMoatError(null);
     try {
+      if (ensureBackendActive) {
+        await ensureBackendActive();
+      }
       const res = await axios.get(`${API_BASE}/equity-research/moat-data/${symbol}`);
       setMoatData(res.data);
     } catch (err) {
@@ -1257,7 +1269,7 @@ function MoatModule({ symbol }) {
 
 
 // ─── News Module (special — shows raw articles list + lazy LLM summary) ────────
-function NewsModule({ symbol }) {
+function NewsModule({ symbol, ensureBackendActive }) {
   const [newsData, setNewsData] = useState(null);
   const [newsLoading, setNewsLoading] = useState(false);
   const [newsError, setNewsError] = useState(null);
@@ -1279,6 +1291,9 @@ function NewsModule({ symbol }) {
     setArticleSummaries({});
     setArticleErrors({});
     try {
+      if (ensureBackendActive) {
+        await ensureBackendActive();
+      }
       const res = await axios.get(`${API_BASE}/equity-research/news-data/${symbol}`);
       setNewsData(res.data);
     } catch (err) {
@@ -1512,7 +1527,7 @@ function NewsModule({ symbol }) {
 
 
 // ─── Main Dashboard ────────────────────────────────────────────────────────────
-export default function ResearchDashboard() {
+export default function ResearchDashboard({ ensureBackendActive }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -1528,6 +1543,9 @@ export default function ResearchDashboard() {
       if (searchTerm.length >= 2) {
         setIsSearching(true);
         try {
+          if (ensureBackendActive) {
+            await ensureBackendActive();
+          }
           const res = await axios.get(`${API_BASE}/equity-research/search?q=${searchTerm}`);
           setSearchResults(res.data);
           setShowDropdown(true);
@@ -1552,13 +1570,17 @@ export default function ResearchDashboard() {
     setModuleStates({});
   };
 
-  const analyzeModule = (moduleId) => {
+  const analyzeModule = async (moduleId) => {
     if (!selectedCompany) return;
 
     setModuleStates(prev => ({
       ...prev,
       [moduleId]: { loading: true, data: '', error: null }
     }));
+
+    if (ensureBackendActive) {
+      await ensureBackendActive();
+    }
 
     const eventSource = new EventSource(`${API_BASE}/equity-research/analyze/${selectedCompany.symbol}/${moduleId}`);
 
@@ -1703,19 +1725,19 @@ export default function ResearchDashboard() {
                   {/* Content Area */}
                   {isFinancials ? (
                     // ── Special Financials module ──────────────────────────────
-                    <FinancialsModule symbol={selectedCompany.symbol} />
+                    <FinancialsModule symbol={selectedCompany.symbol} ensureBackendActive={ensureBackendActive} />
                   ) : mod.id === 'technical' ? (
                     // ── Special Technical module ───────────────────────────────
-                    <TechnicalModule symbol={selectedCompany.symbol} />
+                    <TechnicalModule symbol={selectedCompany.symbol} ensureBackendActive={ensureBackendActive} />
                   ) : mod.id === 'moat' ? (
                     // ── Special Moat module ────────────────────────────────────
-                    <MoatModule symbol={selectedCompany.symbol} />
+                    <MoatModule symbol={selectedCompany.symbol} ensureBackendActive={ensureBackendActive} />
                   ) : mod.id === 'news' ? (
                     // ── Special News module ────────────────────────────────────
-                    <NewsModule symbol={selectedCompany.symbol} />
+                    <NewsModule symbol={selectedCompany.symbol} ensureBackendActive={ensureBackendActive} />
                   ) : mod.id === 'business' ? (
                     // ── Special Business module ────────────────────────────────
-                    <BusinessModule symbol={selectedCompany.symbol} />
+                    <BusinessModule symbol={selectedCompany.symbol} ensureBackendActive={ensureBackendActive} />
                   ) : (
                     // ── Regular LLM-powered modules (Valuation, etc.) ──────────
                     <>

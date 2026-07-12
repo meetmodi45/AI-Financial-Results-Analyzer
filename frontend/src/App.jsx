@@ -161,57 +161,38 @@ function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeSummaryTab, setActiveSummaryTab] = useState("SUMMARY");
   const [isBackendWakingUp, setIsBackendWakingUp] = useState(false);
-  const [coldStartCountdown, setColdStartCountdown] = useState(60);
+  const [coldStartCountdown, setColdStartCountdown] = useState(90);
 
-  useEffect(() => {
-    let countdownInterval;
-    let pollInterval;
-    let isChecking = true;
+  const ensureBackendActive = async () => {
+    try {
+      // Fast check with 2s timeout
+      await axios.get(`${API_BASE}/health`, { timeout: 2000 });
+      return true;
+    } catch (err) {
+      setIsBackendWakingUp(true);
+      setColdStartCountdown(90);
+      
+      return new Promise((resolve) => {
+        let countdown = 90;
+        const countdownInterval = setInterval(() => {
+          countdown = Math.max(1, countdown - 1);
+          setColdStartCountdown(countdown);
+        }, 1000);
 
-    const checkBackendHealth = async () => {
-      try {
-        // Ping health endpoint with low timeout
-        await axios.get(`${API_BASE}/health`, { timeout: 4000 });
-        if (isChecking) {
-          setIsBackendWakingUp(false);
-        }
-      } catch (err) {
-        // Backend did not respond — start countdown and polling if not already started
-        if (isChecking) {
-          setIsBackendWakingUp(true);
-          setColdStartCountdown(60);
-          
-          // Start countdown timer
-          countdownInterval = setInterval(() => {
-            setColdStartCountdown(prev => {
-              if (prev <= 1) return 1; // don't go below 1s to show it's still waiting
-              return prev - 1;
-            });
-          }, 1000);
-
-          // Start polling every 4 seconds
-          pollInterval = setInterval(async () => {
-            try {
-              await axios.get(`${API_BASE}/health`, { timeout: 3000 });
-              setIsBackendWakingUp(false);
-              clearInterval(countdownInterval);
-              clearInterval(pollInterval);
-            } catch (pollErr) {
-              // still down
-            }
-          }, 4000);
-        }
-      }
-    };
-
-    checkBackendHealth();
-
-    return () => {
-      isChecking = false;
-      clearInterval(countdownInterval);
-      clearInterval(pollInterval);
-    };
-  }, []);
+        const pollInterval = setInterval(async () => {
+          try {
+            await axios.get(`${API_BASE}/health`, { timeout: 3000 });
+            clearInterval(countdownInterval);
+            clearInterval(pollInterval);
+            setIsBackendWakingUp(false);
+            resolve(true);
+          } catch (pollErr) {
+            // still down
+          }
+        }, 4000);
+      });
+    }
+  };
 
   const [isConcallAnalyzing, setIsConcallAnalyzing] = useState(false);
   const [concallProgress, setConcallProgress] = useState(0);
@@ -423,6 +404,8 @@ function App() {
     if (financialUploadType === "file" && !file) return;
     if (financialUploadType === "url" && !financialUrl) return;
 
+    await ensureBackendActive();
+
     const formData = new FormData();
     if (financialUploadType === "file") {
       formData.append("file", file);
@@ -454,6 +437,8 @@ function App() {
     }
     setConcallError(null);
     setIsConcallUploading(true);
+
+    await ensureBackendActive();
 
     const formData = new FormData();
     if (concallUploadType === "file") {
@@ -501,6 +486,8 @@ function App() {
     setChatMessages(prev => [...prev, userMsg]);
     setCurrentQuery("");
     setIsChatLoading(true);
+
+    await ensureBackendActive();
 
     try {
       const res = await axios.post(`${API_BASE}/concall/chat`, {
@@ -576,7 +563,7 @@ function App() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-10 space-y-12">
 
-        {activeTab === 'RESEARCH' && <ResearchDashboard />}
+        {activeTab === 'RESEARCH' && <ResearchDashboard ensureBackendActive={ensureBackendActive} />}
 
 
 
@@ -1771,20 +1758,22 @@ function App() {
             </div>
 
             <p className="text-xs text-stone-600 font-mono leading-relaxed bg-[#F2EBE3] p-4 border-2 border-black">
-              Our core backend servers sleep during periods of inactivity to save costs. 
-              It takes up to 60 seconds to boot up on your first visit. Thank you for your patience!
+              {coldStartCountdown <= 1 
+                ? "Still waiting... The server is taking a bit longer than expected to boot up. We are continuously retrying connection."
+                : "Our core backend servers sleep during periods of inactivity to save costs. It takes up to 90 seconds to boot up on your first visit. Thank you for your patience!"
+              }
             </p>
 
             {/* Countdown Progress Bar */}
             <div className="space-y-2">
               <div className="flex justify-between font-mono text-xs font-bold uppercase">
-                <span>Booting servers...</span>
+                <span>{coldStartCountdown <= 1 ? "Still retrying connection..." : "Booting servers..."}</span>
                 <span>{coldStartCountdown}s remaining</span>
               </div>
               <div className="w-full h-4 border-2 border-black bg-stone-100 relative overflow-hidden">
                 <div 
                   className="absolute top-0 left-0 h-full bg-[#991B1B] transition-all duration-1000" 
-                  style={{ width: `${((60 - coldStartCountdown) / 60) * 100}%` }}
+                  style={{ width: `${((90 - coldStartCountdown) / 90) * 100}%` }}
                 >
                   <div className="w-full h-full opacity-20 bg-[repeating-linear-gradient(45deg,transparent,transparent_5px,#000_5px,#000_10px)]"></div>
                 </div>
