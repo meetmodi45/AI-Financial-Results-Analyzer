@@ -13,6 +13,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from app.core.db import get_db
 from app.models.concall import ConcallDocument
 from app.services.concall_processor import process_concall_document
+from app.services.transcript_chunker import retrieve_with_neighbors
 
 logger = logging.getLogger(__name__)
 
@@ -137,14 +138,55 @@ async def chat_with_concall(request: ChatRequest, db: Session = Depends(get_db))
             namespace=request.document_id
         )
 
-        retriever = vectorstore.as_retriever(
-            search_kwargs={
-                "k": 5,
-                "filter": {"document_id": request.document_id}
-            }
-        )
+        # Generate alternative queries for Multi-Query Expansion
+        try:
+            import re
+            query_gen_llm = ChatGroq(model="meta-llama/llama-4-scout-17b-16e-instruct", temperature=0.1)
+            query_gen_prompt = (
+                "You are an AI language model assistant. Your task is to generate 3 alternative versions of the "
+                "user query to retrieve relevant documents from a vector database.\n"
+                "By generating multiple perspectives on the user query, your goal is to help the user retrieve "
+                "non-contiguous key contexts (e.g., physical assets, locations, audit/monitoring, or partner/order details) "
+                "that may be split across different sections of a transcript.\n\n"
+                "Generate exactly 3 alternative queries, focusing on different aspects of the topic:\n"
+                "1. General financial/audit/compliance monitoring of the topic\n"
+                "2. Physical assets, locations, projects, or factories related to the topic\n"
+                "3. Operational partners, collaborations, or initial orders related to the topic\n\n"
+                "Provide these alternative queries separated by newlines, one per line. Do not include any extra text, numbers, prefix labels, or explanation.\n\n"
+                f"Original query: {request.query}"
+            )
+            query_gen_res = query_gen_llm.invoke(query_gen_prompt)
+            alt_queries = [request.query]
+            for q in query_gen_res.content.strip().split("\n"):
+                q_clean = q.strip().strip("-*").strip()
+                q_clean = re.sub(r'^\d+\.\s*', '', q_clean)
+                if q_clean:
+                    alt_queries.append(q_clean)
+            alt_queries = list(dict.fromkeys(alt_queries))
+            logger.info(f"Multi-Query Expansion generated queries: {alt_queries}")
+        except Exception as q_err:
+            logger.warning(f"Failed to generate alternative queries: {q_err}. Falling back to original query.")
+            alt_queries = [request.query]
 
-        retrieved_docs = retriever.invoke(request.query)
+        # Execute multi-query retrieval with deduplication
+        all_retrieved_docs = []
+        seen_chunk_ids = set()
+        for q in alt_queries:
+            docs = retrieve_with_neighbors(
+                vectorstore=vectorstore,
+                query=q,
+                document_id=request.document_id,
+                k=4
+            )
+            for d in docs:
+                c_id = d.metadata.get("chunk_id") or d.metadata.get("chunk_index") or d.page_content
+                if c_id not in seen_chunk_ids:
+                    seen_chunk_ids.add(c_id)
+                    all_retrieved_docs.append(d)
+
+        # Chronological sort & limit to top 8 chunks to keep context size safe
+        all_retrieved_docs.sort(key=lambda d: int(d.metadata.get("chunk_index") or 0))
+        retrieved_docs = all_retrieved_docs[:8]
         context_text = "\n\n".join([d.page_content for d in retrieved_docs])
 
         llm = ChatGroq(model="meta-llama/llama-4-scout-17b-16e-instruct", temperature=0.2)
@@ -152,6 +194,11 @@ async def chat_with_concall(request: ChatRequest, db: Session = Depends(get_db))
         system_prompt = (
             "You are an expert financial analyst. Answer the user's question about the earnings call transcript "
             "based strictly on the context provided. If the answer cannot be found in the context, say so.\n\n"
+            "Format your answer cleanly using Markdown:\n"
+            "- Use bold formatting (**bold**) for key metrics, numbers, company names, and crucial conclusions.\n"
+            "- Present lists using clean bullet points (* or 1., 2., 3.) and ALWAYS place each list item on its own new line with spacing.\n"
+            "- Use double newlines to separate distinct paragraphs or points for readability.\n"
+            "- Keep descriptions sharp, clear, and professional.\n\n"
             "Context:\n{context}"
         )
 

@@ -15,6 +15,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+@router.get("/health")
+def health_check():
+    return {"status": "ok", "message": "API is active"}
+
 UPLOAD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "data", "uploads"))
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 logger.info(f"[Agent 1] Upload directory resolved to: {UPLOAD_DIR}")

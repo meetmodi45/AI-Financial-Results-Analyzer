@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Activity, FileText, Upload, AlertTriangle, TrendingUp, BarChart3, Database, FileDigit, Calendar, CheckCircle, DollarSign, TrendingDown, Menu, X } from 'lucide-react';
+import { Activity, FileText, Upload, AlertTriangle, TrendingUp, BarChart3, Database, FileDigit, Calendar, CheckCircle, DollarSign, TrendingDown, Menu, X, Star, MessageSquare, Loader2 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 import GlobalAssistant from './components/GlobalAssistant';
 import ResearchDashboard from './components/ResearchDashboard';
+import ReactMarkdown from 'react-markdown';
 
 const API_BASE = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8000/api/v1`;
 
@@ -43,6 +44,86 @@ function parseApiError(e, fallback = "Something went wrong. Please try again.") 
   return fallback;
 }
 
+// Automatically formats and highlights financial metrics, numbers, and drivers
+function formatSummaryText(text) {
+  if (!text) return "";
+
+  // Regex to split on metrics, numbers, percentages, currencies and causality indicators
+  const regex = new RegExp(
+    '(' +
+      // Percentages and basis points (e.g., +8%, -5%, 150 bps)
+      '(?:[+-]?\\d+(?:\\.\\d+)?%|[+-]?\\d+\\s*(?:bps|basis points))' +
+      '|' +
+      // Currencies and scale units (e.g., INR 4.2k Cr, Rs. 150 Cr, USD 10M, 500 Cr)
+      '(?:(?:INR|Rs\\.?|USD|\\$)\\s*\\d+(?:\\.\\d+)?\\s*[kKmMbB]?(?:\\s*(?:Cr|Crore|Lakh|Mn|Bn|Billion|Million))?|\\b\\d+(?:\\.\\d+)?\\s*(?:Cr|Crore|Lakh|Mn|Bn|Billion|Million)\\b)' +
+      '|' +
+      // Financial metrics (whole words, case-insensitive/specific)
+      '\\b(?:Rev|Revenue|EBITDA|PAT|PBT|EPS|YoY|QoQ|CapEx|Margins?|Vol|Volume|Mgmt|Management|FY\\d{2}|Q[1-4])\\b' +
+      '|' +
+      // Causality words (whole phrases, case-insensitive)
+      '\\b(?:driven by|due to|on account of|led by|offset by|cushioned by|supported by|impacted by|owing to|primarily because)\\b' +
+    ')',
+    'gi'
+  );
+
+  const testRegex = new RegExp(
+    '^(?:' +
+      '(?:[+-]?\\d+(?:\\.\\d+)?%|[+-]?\\d+\\s*(?:bps|basis points))' +
+      '|' +
+      '(?:(?:INR|Rs\\.?|USD|\\$)\\s*\\d+(?:\\.\\d+)?\\s*[kKmMbB]?(?:\\s*(?:Cr|Crore|Lakh|Mn|Bn|Billion|Million))?|\\b\\d+(?:\\.\\d+)?\\s*(?:Cr|Crore|Lakh|Mn|Bn|Billion|Million)\\b)' +
+      '|' +
+      '\\b(?:Rev|Revenue|EBITDA|PAT|PBT|EPS|YoY|QoQ|CapEx|Margins?|Vol|Volume|Mgmt|Management|FY\\d{2}|Q[1-4])\\b' +
+      '|' +
+      '\\b(?:driven by|due to|on account of|led by|offset by|cushioned by|supported by|impacted by|owing to|primarily because)\\b' +
+    ')$',
+    'i'
+  );
+
+  const parts = text.split(regex);
+  if (parts.length === 1) return text;
+
+  return parts.map((part, index) => {
+    if (testRegex.test(part)) {
+      const lower = part.toLowerCase();
+      
+      // 1. Causality drivers -> styled slate/gray and underlined decoration
+      if (/driven by|due to|on account of|led by|offset by|cushioned by|supported by|impacted by|owing to|primarily because/.test(lower)) {
+        return (
+          <span key={index} className="font-semibold text-stone-600 underline decoration-dotted decoration-stone-400">
+            {part}
+          </span>
+        );
+      }
+      
+      // 2. Metrics & timeframes -> bold and slate-dark highlight
+      if (/^(rev|revenue|ebitda|pat|pbt|eps|yoy|qoq|capex|margins?|vol|volume|mgmt|management|fy\d{2}|q[1-4])$/.test(lower)) {
+        return (
+          <strong key={index} className="font-extrabold text-[#1a1a1a] tracking-tight bg-stone-100 px-1 rounded border border-stone-200">
+            {part}
+          </strong>
+        );
+      }
+      
+      // 3. Numbers, percentages, currencies -> color-coded based on direction
+      const isNegative = lower.includes('-') || lower.includes('down');
+      const isPositive = lower.includes('+') || lower.includes('up');
+      
+      let badgeClass = "font-black";
+      if (isPositive) badgeClass += " text-[#2E6F40] bg-[#E8F5E9] px-1 rounded border border-[#C8E6C9]";
+      else if (isNegative) badgeClass += " text-[#D32F2F] bg-[#FFEBEE] px-1 rounded border border-[#FFCDD2]";
+      else badgeClass += " text-brutalist-dark bg-[#FFFDF0] px-1 rounded border border-yellow-200";
+      
+      return (
+        <span key={index} className={badgeClass}>
+          {part}
+        </span>
+      );
+    }
+    
+    return part;
+  });
+}
+
 function App() {
   const [file, setFile] = useState(null);
   const [financialUrl, setFinancialUrl] = useState("");
@@ -60,6 +141,7 @@ function App() {
   const [concallUploadType, setConcallUploadType] = useState("file");
   const [concallCompanyName, setConcallCompanyName] = useState("");
   const [concallSector, setConcallSector] = useState("");
+  const [customSector, setCustomSector] = useState("");
   const [concallQuarter, setConcallQuarter] = useState("Q4");
   const [concallFiscalYear, setConcallFiscalYear] = useState("FY26");
   const [concallDocumentId, setConcallDocumentId] = useState(null);
@@ -75,8 +157,61 @@ function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [activePhaseText, setActivePhaseText] = useState("");
-  const [activeTab, setActiveTab] = useState("RESEARCH");
+  const [activeTab, setActiveTab] = useState("CONCALL");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [activeSummaryTab, setActiveSummaryTab] = useState("SUMMARY");
+  const [isBackendWakingUp, setIsBackendWakingUp] = useState(false);
+  const [coldStartCountdown, setColdStartCountdown] = useState(60);
+
+  useEffect(() => {
+    let countdownInterval;
+    let pollInterval;
+    let isChecking = true;
+
+    const checkBackendHealth = async () => {
+      try {
+        // Ping health endpoint with low timeout
+        await axios.get(`${API_BASE}/health`, { timeout: 4000 });
+        if (isChecking) {
+          setIsBackendWakingUp(false);
+        }
+      } catch (err) {
+        // Backend did not respond — start countdown and polling if not already started
+        if (isChecking) {
+          setIsBackendWakingUp(true);
+          setColdStartCountdown(60);
+          
+          // Start countdown timer
+          countdownInterval = setInterval(() => {
+            setColdStartCountdown(prev => {
+              if (prev <= 1) return 1; // don't go below 1s to show it's still waiting
+              return prev - 1;
+            });
+          }, 1000);
+
+          // Start polling every 4 seconds
+          pollInterval = setInterval(async () => {
+            try {
+              await axios.get(`${API_BASE}/health`, { timeout: 3000 });
+              setIsBackendWakingUp(false);
+              clearInterval(countdownInterval);
+              clearInterval(pollInterval);
+            } catch (pollErr) {
+              // still down
+            }
+          }, 4000);
+        }
+      }
+    };
+
+    checkBackendHealth();
+
+    return () => {
+      isChecking = false;
+      clearInterval(countdownInterval);
+      clearInterval(pollInterval);
+    };
+  }, []);
 
   const [isConcallAnalyzing, setIsConcallAnalyzing] = useState(false);
   const [concallProgress, setConcallProgress] = useState(0);
@@ -327,7 +462,10 @@ function App() {
       formData.append("url", concallUrl);
     }
     formData.append("company_name", concallCompanyName || "Unknown");
-    formData.append("sector", concallSector || "General Corporate");
+    
+    const finalSector = concallSector === "Other" ? (customSector.trim() || "General Corporate") : (concallSector || "General Corporate");
+    formData.append("sector", finalSector);
+    
     formData.append("quarter", concallQuarter || "Q4");
     formData.append("fiscal_year", concallFiscalYear || "FY26");
 
@@ -354,11 +492,12 @@ function App() {
     }
   };
 
-  const sendChatMessage = async (e) => {
-    e.preventDefault();
-    if (!currentQuery.trim() || !concallDocumentId) return;
+  const sendChatMessage = async (e, directQuery = null) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const queryText = directQuery || currentQuery;
+    if (!queryText.trim() || !concallDocumentId) return;
 
-    const userMsg = { role: "user", content: currentQuery };
+    const userMsg = { role: "user", content: queryText };
     setChatMessages(prev => [...prev, userMsg]);
     setCurrentQuery("");
     setIsChatLoading(true);
@@ -412,9 +551,9 @@ function App() {
           </div>
           {/* Desktop Nav (Replaces the subtitle) */}
           <div className="hidden md:flex items-center gap-8 text-sm text-brutalist-dark font-mono uppercase tracking-widest font-black">
-            <button onClick={() => setActiveTab('RESEARCH')} className={`transition-colors hover:text-brutalist-orange ${activeTab === 'RESEARCH' ? 'text-[#2E6F40] underline decoration-4 underline-offset-4' : ''}`}>Equity Research</button>
+            <button onClick={() => setActiveTab('CONCALL')} className={`transition-colors hover:text-brutalist-orange ${activeTab === 'CONCALL' ? 'text-[#991B1B] underline decoration-4 underline-offset-4' : ''}`}>Earnings Calls</button>
             <button onClick={() => setActiveTab('RESULTS')} className={`transition-colors hover:text-brutalist-orange ${activeTab === 'RESULTS' ? 'text-brutalist-orange underline decoration-4 underline-offset-4' : ''}`}>Results Analysis</button>
-            <button onClick={() => setActiveTab('CONCALL')} className={`transition-colors hover:text-brutalist-orange ${activeTab === 'CONCALL' ? 'text-[#FF6B6B] underline decoration-4 underline-offset-4' : ''}`}>Earnings Calls</button>
+            <button onClick={() => setActiveTab('RESEARCH')} className={`transition-colors hover:text-brutalist-orange ${activeTab === 'RESEARCH' ? 'text-[#2E6F40] underline decoration-4 underline-offset-4' : ''}`}>Equity Research</button>
           </div>
 
           {/* Mobile Hamburger Toggle */}
@@ -428,9 +567,9 @@ function App() {
         {/* Mobile Dropdown Menu (Compact Floating Box) */}
         {isMobileMenuOpen && (
           <div className="md:hidden bg-[#F2EBE3] border-4 border-brutalist-dark absolute top-full right-4 mt-2 w-56 flex flex-col shadow-[4px_4px_0px_0px_#1A1A1A]">
-            <button onClick={() => { setActiveTab('RESEARCH'); setIsMobileMenuOpen(false); }} className={`px-4 py-3 text-sm font-black uppercase tracking-widest border-b-4 border-brutalist-dark text-left ${activeTab === 'RESEARCH' ? 'bg-[#2E6F40] text-white' : 'text-brutalist-dark hover:bg-stone-200'}`}>Equity Research</button>
+            <button onClick={() => { setActiveTab('CONCALL'); setIsMobileMenuOpen(false); }} className={`px-4 py-3 text-sm font-black uppercase tracking-widest border-b-4 border-brutalist-dark text-left ${activeTab === 'CONCALL' ? 'bg-[#991B1B] text-white' : 'text-brutalist-dark hover:bg-stone-200'}`}>Earnings Calls</button>
             <button onClick={() => { setActiveTab('RESULTS'); setIsMobileMenuOpen(false); }} className={`px-4 py-3 text-sm font-black uppercase tracking-widest border-b-4 border-brutalist-dark text-left ${activeTab === 'RESULTS' ? 'bg-brutalist-orange text-brutalist-dark' : 'text-brutalist-dark hover:bg-stone-200'}`}>Results Analysis</button>
-            <button onClick={() => { setActiveTab('CONCALL'); setIsMobileMenuOpen(false); }} className={`px-4 py-3 text-sm font-black uppercase tracking-widest text-left ${activeTab === 'CONCALL' ? 'bg-[#FF6B6B] text-white' : 'text-brutalist-dark hover:bg-stone-200'}`}>Earnings Calls</button>
+            <button onClick={() => { setActiveTab('RESEARCH'); setIsMobileMenuOpen(false); }} className={`px-4 py-3 text-sm font-black uppercase tracking-widest text-left ${activeTab === 'RESEARCH' ? 'bg-[#2E6F40] text-white' : 'text-brutalist-dark hover:bg-stone-200'}`}>Equity Research</button>
           </div>
         )}
       </header>
@@ -1155,193 +1294,356 @@ function App() {
               </div>
             )}
 
-
           </div>
         )}
 
-        {activeTab === 'CONCALL' && (
-          <div className="max-w-3xl mx-auto w-full space-y-8">
-            {/* Concall Header */}
-            <div className="brutalist-panel p-8 text-center bg-[#F2EBE3]">
-              <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter mb-4 leading-none text-[#FF6B6B]">
-                Earnings Call Intelligence
-              </h2>
-              <p className="text-brutalist-dark font-mono text-sm max-w-2xl mx-auto font-bold">
-                Upload earnings call transcripts. Our vector database maps the semantic context, allowing you to instantly interrogate management's commentary and uncover hidden risks.
-              </p>
-            </div>
-            
-            {/* CONCALL INGESTION PANEL OR CHAT INTERFACE */}
+            {activeTab === 'CONCALL' && (
+              <div className={`${concallStatusData?.status === 'COMPLETED' ? 'max-w-7xl' : 'max-w-3xl'} mx-auto w-full space-y-8`}>
+                {/* Concall Header */}
+                <div className="brutalist-panel p-8 text-center bg-[#F2EBE3]">
+                  <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tighter mb-4 leading-none text-[#991B1B]">
+                    Earnings Call Intelligence
+                  </h2>
+                  <p className="text-brutalist-dark font-mono text-sm max-w-2xl mx-auto font-bold">
+                    Upload earnings call transcripts. Our vector database maps the semantic context, allowing you to instantly interrogate management's commentary and uncover hidden risks.
+                  </p>
+                </div>
             <div className="border-t-4 border-black my-8"></div>
 
             {concallStatusData?.status === 'COMPLETED' ? (
-              <div className="space-y-8 animate-in fade-in duration-700">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-in fade-in duration-700">
                 {isConcallCached && (
-                  <div className="bg-brutalist-green text-white border-4 border-brutalist-dark p-3 text-sm font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_#1A1A1A]">
+                  <div className="lg:col-span-12 bg-brutalist-green text-white border-4 border-brutalist-dark p-3 text-sm font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-[4px_4px_0px_0px_#1A1A1A]">
                     <Database size={20} />
                     Instant Load: Summary retrieved from cache
                   </div>
                 )}
-                <div className="brutalist-panel flex flex-col border-4 border-brutalist-dark shadow-[4px_4px_0px_0px_#1A1A1A] bg-[#FDFBF7] h-[600px] sm:h-[500px]">
-                <div className="bg-[#1A1A1A] text-white p-3 sm:p-4 font-black uppercase tracking-widest border-b-4 border-brutalist-dark flex justify-between items-center gap-2">
-                  <span className="truncate pr-4 text-sm sm:text-base">Chat: {concallFile ? concallFile.name : 'Transcript'}</span>
-                  <button onClick={() => { setConcallStatusData(null); setConcallDocumentId(null); setChatMessages([]); setConcallFile(null) }} className="text-[10px] sm:text-xs whitespace-nowrap bg-white text-black px-2 py-1 border-2 border-black hover:bg-[#FF6B6B] hover:text-white transition-colors">[ NEW SESSION ]</button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                  {chatMessages.length === 0 && (
-                    <div className="text-center font-mono text-sm text-stone-500 mt-10">
-                      Ask any question about the Earnings Call transcript.
-                    </div>
-                  )}
-                  {chatMessages.map((msg, idx) => (
-                    <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`p-3 max-w-[85%] border-2 border-black font-mono text-sm shadow-[2px_2px_0px_0px_#000000] ${msg.role === 'user' ? 'bg-[#FF6B6B] text-white' : 'bg-white text-black'}`}>
-                        {msg.content}
+                
+                {/* Left Column: Chat Interface */}
+                <div className="lg:col-span-5">
+                  <div className="brutalist-panel flex flex-col border-4 border-brutalist-dark shadow-[4px_4px_0px_0px_#1A1A1A] bg-[#FDFBF7] h-[550px]">
+                    <div className="bg-[#1A1A1A] text-white p-3 sm:p-4 font-black uppercase tracking-widest border-b-4 border-brutalist-dark flex justify-between items-center gap-2">
+                      <span className="truncate pr-4 text-xs sm:text-sm">Chat: {concallFile ? concallFile.name : 'Transcript'}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button 
+                          onClick={() => { setChatMessages([]); setCurrentQuery(""); }} 
+                          className="text-[9px] sm:text-[10px] uppercase font-black bg-white text-black px-2 py-0.5 border border-black hover:bg-stone-100 transition-colors"
+                        >
+                          [ Reset Chat ]
+                        </button>
+                        <button 
+                          onClick={() => { setConcallStatusData(null); setConcallDocumentId(null); setChatMessages([]); setConcallFile(null) }} 
+                          className="text-[9px] sm:text-[10px] uppercase font-black bg-white text-black px-2 py-0.5 border border-black hover:bg-[#991B1B] hover:text-white transition-colors"
+                        >
+                          [ New Session ]
+                        </button>
                       </div>
                     </div>
-                  ))}
-                  {isChatLoading && (
-                    <div className="flex justify-start">
-                      <div className="p-3 border-2 border-black font-mono text-sm shadow-[2px_2px_0px_0px_#000000] bg-white text-black animate-pulse">
-                        Analyzing semantic context...
+
+                    <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                      {chatMessages.length === 0 && (
+                        <div className="flex flex-col items-center justify-center h-full text-center p-6 space-y-4 my-auto">
+                          <div className="p-3 bg-[#991B1B]/10 rounded-full text-[#991B1B] border-2 border-[#991B1B]">
+                            <MessageSquare size={28} />
+                          </div>
+                          
+                          {/* Big Company Heading */}
+                          <div>
+                            <h3 className="text-2xl font-black uppercase tracking-tighter text-brutalist-dark leading-none">
+                              {concallCompanyName || 'Loaded Company'}
+                            </h3>
+                            <p className="text-[10px] font-mono font-black uppercase text-[#991B1B] tracking-widest mt-1">
+                              Start your investigation
+                            </p>
+                          </div>
+
+                          <p className="text-xs sm:text-sm font-black uppercase tracking-wider text-stone-700 font-mono max-w-xs leading-normal">
+                            Select a quick query below or type your own question in the input bar.
+                          </p>
+                          <div className="grid grid-cols-1 gap-2 w-full max-w-sm mt-2">
+                            {[
+                              "What is the revenue and margin guidance?",
+                              "What are the key growth drivers and collaborations?",
+                              "What are the major risks and segment headwinds?",
+                            ].map((prompt, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => sendChatMessage(null, prompt)}
+                                className="text-left bg-white hover:bg-stone-50 border-2 border-black p-2.5 font-mono text-[10px] text-brutalist-dark hover:shadow-[2px_2px_0px_0px_#000000] hover:-translate-y-0.5 hover:-translate-x-0.5 transition-all leading-normal"
+                              >
+                                💬 {prompt}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {chatMessages.map((msg, idx) => (
+                        <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                          {/* Speaker Badge */}
+                          <span className={`text-[9px] font-mono font-black uppercase mb-1 px-1.5 py-0.5 border border-black shadow-[1px_1px_0px_0px_#000000] ${msg.role === 'user' ? 'bg-[#991B1B] text-white' : 'bg-stone-200 text-black'}`}>
+                            {msg.role === 'user' ? 'User' : 'AI Assistant'}
+                          </span>
+                          
+                          <div className={`p-3 max-w-[85%] border-2 border-black font-mono text-xs sm:text-sm shadow-[2px_2px_0px_0px_#000000] ${msg.role === 'user' ? 'bg-[#991B1B] text-white' : 'bg-white text-black'}`}>
+                            {msg.role === 'user' ? (
+                              msg.content
+                            ) : (
+                              <ReactMarkdown
+                                components={{
+                                  p:      ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                                  ul:     ({ children }) => <ul className="list-disc list-outside pl-4 mb-2 space-y-1">{children}</ul>,
+                                  ol:     ({ children }) => <ol className="list-decimal list-outside pl-4 mb-2 space-y-1">{children}</ol>,
+                                  li:     ({ children }) => <li className="leading-snug">{children}</li>,
+                                  strong: ({ children }) => <strong className="font-bold">{children}</strong>,
+                                  h3:     ({ children }) => <p className="font-bold mt-2 mb-1">{children}</p>,
+                                  h4:     ({ children }) => <p className="font-bold mt-2 mb-1">{children}</p>,
+                                }}
+                              >
+                                {msg.content}
+                              </ReactMarkdown>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {isChatLoading && (
+                        <div className="flex justify-start flex-col items-start">
+                          <span className="text-[9px] font-mono font-black uppercase mb-1 px-1.5 py-0.5 border border-black shadow-[1px_1px_0px_0px_#000000] bg-stone-200 text-black">
+                            AI Assistant
+                          </span>
+                          <div className="p-3 border-2 border-black font-mono text-xs sm:text-sm shadow-[2px_2px_0px_0px_#000000] bg-white text-black animate-pulse flex items-center gap-2">
+                            <Loader2 size={14} className="animate-spin text-[#991B1B]" />
+                            Analyzing semantic context...
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <form onSubmit={sendChatMessage} className="border-t-4 border-black p-4 bg-white flex gap-2">
+                      <input
+                        type="text"
+                        value={currentQuery}
+                        onChange={(e) => setCurrentQuery(e.target.value)}
+                        placeholder="Ask a question..."
+                        className="flex-1 border-2 border-black p-3 font-mono text-sm outline-none focus:bg-stone-100"
+                      />
+                      <button
+                        type="submit"
+                        disabled={isChatLoading || !currentQuery.trim()}
+                        className="px-6 bg-[#991B1B] text-white border-2 border-black font-black uppercase tracking-widest hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[4px_4px_0px_0px_#000000] transition-all disabled:opacity-50 disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-none"
+                      >
+                        Send
+                      </button>
+                    </form>
+                  </div>
+                </div>
+
+                {/* Right Column: Summaries & Insights Dashboard */}
+                <div className="lg:col-span-7 space-y-6">
+                  {concallStatusData.summary_data && (
+                    <div className="brutalist-panel border-4 border-brutalist-dark shadow-[4px_4px_0px_0px_#1A1A1A] bg-[#FDFBF7] flex flex-col overflow-hidden">
+                      {/* Tabs Bar */}
+                      <div className="flex border-b-4 border-brutalist-dark font-mono text-xs sm:text-sm uppercase tracking-wider font-black bg-[#1A1A1A]">
+                        <button 
+                          onClick={() => setActiveSummaryTab('SUMMARY')} 
+                          className={`flex-1 px-4 py-3 text-center transition-all flex items-center justify-center gap-2 ${activeSummaryTab === 'SUMMARY' ? 'bg-[#991B1B] text-white font-black' : 'bg-white text-black hover:bg-stone-100'}`}
+                        >
+                          <Star size={16} className={activeSummaryTab === 'SUMMARY' ? 'text-yellow-300 fill-yellow-300' : 'text-stone-500'} />
+                          <span>takeaways</span>
+                        </button>
+                        <button 
+                          onClick={() => setActiveSummaryTab('SENTIMENT')} 
+                          className={`flex-1 px-4 py-3 text-center border-l-4 border-r-4 border-brutalist-dark transition-all flex items-center justify-center gap-2 ${activeSummaryTab === 'SENTIMENT' ? 'bg-[#991B1B] text-white font-black' : 'bg-white text-black hover:bg-stone-100'}`}
+                        >
+                          <TrendingUp size={16} className={activeSummaryTab === 'SENTIMENT' ? 'text-white' : 'text-stone-500'} />
+                          <span>sentiment</span>
+                        </button>
+                        <button 
+                          onClick={() => setActiveSummaryTab('RISKS')} 
+                          className={`flex-1 px-4 py-3 text-center transition-all flex items-center justify-center gap-2 ${activeSummaryTab === 'RISKS' ? 'bg-[#991B1B] text-white font-black' : 'bg-white text-black hover:bg-stone-100'}`}
+                        >
+                          <AlertTriangle size={16} className={activeSummaryTab === 'RISKS' ? 'text-white' : 'text-stone-500'} />
+                          <span>risks & capex</span>
+                        </button>
+                      </div>
+
+                      {/* Tab Contents */}
+                      <div className="p-6 space-y-6 overflow-y-auto max-h-[500px]">
+                        {activeSummaryTab === 'SUMMARY' && (
+                          <div className="space-y-6">
+                            {/* Executive Takeaways */}
+                            {concallStatusData.summary_data.key_takeaways && concallStatusData.summary_data.key_takeaways.length > 0 && (
+                              <div className="space-y-4">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-black text-xs sm:text-sm text-white bg-[#8338EC] inline-block px-3 py-1 uppercase tracking-widest border-2 border-brutalist-dark shadow-[2px_2px_0px_0px_#000000] flex items-center gap-2">
+                                    <Star className="text-yellow-300 animate-pulse fill-yellow-300" size={16} strokeWidth={2.5} />
+                                    Executive Takeaways
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-1 gap-4">
+                                  {concallStatusData.summary_data.key_takeaways.map((item, idx) => (
+                                    <div key={idx} className="bg-white border-2 border-brutalist-dark p-4 rounded shadow-[3px_3px_0px_0px_#1A1A1A] relative flex flex-col pt-6">
+                                      <span className="absolute -top-3 right-3 bg-[#8338EC] text-white font-black text-[10px] px-2 py-0.5 rounded-full border-2 border-brutalist-dark shadow-[1px_1px_0px_0px_#000000]">
+                                        0{idx + 1}
+                                      </span>
+                                      <p className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">
+                                        {formatSummaryText(item)}
+                                      </p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Guidance */}
+                            <div className="border-2 border-brutalist-dark p-4 bg-white shadow-[3px_3px_0px_0px_#1A1A1A]">
+                              <h3 className="font-black text-sm text-brutalist-dark bg-[#F2EBE3] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Forward Guidance & Commitments</h3>
+                              <ul className="space-y-3">
+                                {(concallStatusData.summary_data.guidance || []).map((item, idx) => (
+                                  <li key={idx} className="flex items-start gap-3">
+                                    <TrendingUp className="text-brutalist-dark shrink-0 mt-0.5" size={18} strokeWidth={2.5} />
+                                    <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{formatSummaryText(item)}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        )}
+
+                        {activeSummaryTab === 'SENTIMENT' && (
+                          <div className="grid grid-cols-1 gap-6">
+                            {/* Positive News */}
+                            <div className="border-2 border-brutalist-dark p-4 bg-white shadow-[3px_3px_0px_0px_#1A1A1A]">
+                              <h3 className="font-black text-sm text-white bg-[#2E6F40] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Positive Signals</h3>
+                              <ul className="space-y-3">
+                                {(concallStatusData.summary_data.positive || []).map((item, idx) => (
+                                  <li key={idx} className="flex items-start gap-3">
+                                    <CheckCircle className="text-[#2E6F40] shrink-0 mt-0.5" size={18} strokeWidth={2.5} />
+                                    <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{formatSummaryText(item)}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+
+                            {/* Negative News */}
+                            <div className="border-2 border-brutalist-dark p-4 bg-white shadow-[3px_3px_0px_0px_#1A1A1A]">
+                              <h3 className="font-black text-sm text-white bg-[#991B1B] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Negative Signals</h3>
+                              <ul className="space-y-3">
+                                {(concallStatusData.summary_data.negative || []).map((item, idx) => (
+                                  <li key={idx} className="flex items-start gap-3">
+                                    <AlertTriangle className="text-[#991B1B] shrink-0 mt-0.5" size={18} strokeWidth={2.5} />
+                                    <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{formatSummaryText(item)}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        )}
+
+                        {activeSummaryTab === 'RISKS' && (
+                          <div className="space-y-6">
+                            {/* Risks */}
+                            <div className="border-2 border-brutalist-dark p-4 bg-white shadow-[3px_3px_0px_0px_#1A1A1A]">
+                              <h3 className="font-black text-sm text-white bg-[#D95A2B] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Key Risks to Watch</h3>
+                              <ul className="space-y-3">
+                                {(concallStatusData.summary_data.key_risks_to_watch || []).map((item, idx) => (
+                                  <li key={idx} className="flex items-start gap-3">
+                                    <AlertTriangle className="text-[#D95A2B] shrink-0 mt-0.5" size={18} strokeWidth={2.5} />
+                                    <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{formatSummaryText(item)}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+
+                            {/* Capital Allocation & CapEx */}
+                            {concallStatusData.summary_data.capital_allocation && concallStatusData.summary_data.capital_allocation.length > 0 && (
+                              <div className="border-2 border-brutalist-dark p-4 bg-white shadow-[3px_3px_0px_0px_#1A1A1A]">
+                                <h3 className="font-black text-sm text-white bg-[#1A1A1A] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Capital Allocation & Balance Sheet</h3>
+                                <ul className="space-y-3">
+                                  {concallStatusData.summary_data.capital_allocation.map((item, idx) => (
+                                    <li key={idx} className="flex items-start gap-3">
+                                      <Activity className="text-[#1A1A1A] shrink-0 mt-0.5" size={18} strokeWidth={2.5} />
+                                      <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{formatSummaryText(item)}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+
+                            {/* Strategic Initiatives */}
+                            {concallStatusData.summary_data.strategic_initiatives && concallStatusData.summary_data.strategic_initiatives.length > 0 && (
+                              <div className="border-2 border-brutalist-dark p-4 bg-white shadow-[3px_3px_0px_0px_#1A1A1A]">
+                                <h3 className="font-black text-sm text-white bg-[#5C4033] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Strategic Initiatives & Macro Comments</h3>
+                                <ul className="space-y-3">
+                                  {concallStatusData.summary_data.strategic_initiatives.map((item, idx) => (
+                                    <li key={idx} className="flex items-start gap-3">
+                                      <CheckCircle className="text-[#5C4033] shrink-0 mt-0.5" size={18} strokeWidth={2.5} />
+                                      <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{formatSummaryText(item)}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
                 </div>
-
-                <form onSubmit={sendChatMessage} className="border-t-4 border-black p-4 bg-white flex gap-2">
-                  <input
-                    type="text"
-                    value={currentQuery}
-                    onChange={(e) => setCurrentQuery(e.target.value)}
-                    placeholder="Ask a question..."
-                    className="flex-1 border-2 border-black p-3 font-mono text-sm outline-none focus:bg-stone-100"
-                  />
-                  <button
-                    type="submit"
-                    disabled={isChatLoading || !currentQuery.trim()}
-                    className="px-6 bg-[#FF6B6B] text-white border-2 border-black font-black uppercase tracking-widest hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[4px_4px_0px_0px_#000000] transition-all disabled:opacity-50 disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-none"
-                  >
-                    Send
-                  </button>
-                </form>
-              </div>
-
-              {concallStatusData.summary_data && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {/* Positive News */}
-                  <div className="border-4 border-brutalist-dark p-6 bg-[#FDFBF7] shadow-[4px_4px_0px_0px_#1A1A1A]">
-                    <h3 className="font-black text-lg text-white bg-[#2E6F40] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Positive Signals</h3>
-                    <ul className="space-y-3">
-                      {(concallStatusData.summary_data.positive || []).map((item, idx) => (
-                        <li key={idx} className="flex items-start gap-3">
-                          <CheckCircle className="text-[#2E6F40] shrink-0 mt-0.5" size={20} strokeWidth={2.5} />
-                          <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {/* Negative News */}
-                  <div className="border-4 border-brutalist-dark p-6 bg-[#FDFBF7] shadow-[4px_4px_0px_0px_#1A1A1A]">
-                    <h3 className="font-black text-lg text-white bg-[#FF6B6B] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Negative Signals</h3>
-                    <ul className="space-y-3">
-                      {(concallStatusData.summary_data.negative || []).map((item, idx) => (
-                        <li key={idx} className="flex items-start gap-3">
-                          <AlertTriangle className="text-[#FF6B6B] shrink-0 mt-0.5" size={20} strokeWidth={2.5} />
-                          <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {/* Guidance */}
-                  <div className="border-4 border-brutalist-dark p-6 bg-[#FDFBF7] shadow-[4px_4px_0px_0px_#1A1A1A] md:col-span-2">
-                    <h3 className="font-black text-lg text-brutalist-dark bg-[#F2EBE3] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Forward Guidance & Commitments</h3>
-                    <ul className="space-y-3">
-                      {(concallStatusData.summary_data.guidance || []).map((item, idx) => (
-                        <li key={idx} className="flex items-start gap-3">
-                          <TrendingUp className="text-brutalist-dark shrink-0 mt-0.5" size={20} strokeWidth={2.5} />
-                          <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  
-                  {/* Risks */}
-                  <div className="border-4 border-brutalist-dark p-6 bg-[#FDFBF7] shadow-[4px_4px_0px_0px_#1A1A1A] md:col-span-2">
-                    <h3 className="font-black text-lg text-white bg-[#D95A2B] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Key Risks to Watch</h3>
-                    <ul className="space-y-3">
-                      {(concallStatusData.summary_data.key_risks_to_watch || []).map((item, idx) => (
-                        <li key={idx} className="flex items-start gap-3">
-                          <AlertTriangle className="text-[#D95A2B] shrink-0 mt-0.5" size={20} strokeWidth={2.5} />
-                          <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {/* Capital Allocation & CapEx */}
-                  {concallStatusData.summary_data.capital_allocation && concallStatusData.summary_data.capital_allocation.length > 0 && (
-                    <div className="border-4 border-brutalist-dark p-6 bg-[#FDFBF7] shadow-[4px_4px_0px_0px_#1A1A1A] md:col-span-2">
-                      <h3 className="font-black text-lg text-white bg-[#1A1A1A] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Capital Allocation & Balance Sheet</h3>
-                      <ul className="space-y-3">
-                        {concallStatusData.summary_data.capital_allocation.map((item, idx) => (
-                          <li key={idx} className="flex items-start gap-3">
-                            <Activity className="text-[#1A1A1A] shrink-0 mt-0.5" size={20} strokeWidth={2.5} />
-                            <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Strategic Initiatives */}
-                  {concallStatusData.summary_data.strategic_initiatives && concallStatusData.summary_data.strategic_initiatives.length > 0 && (
-                    <div className="border-4 border-brutalist-dark p-6 bg-[#FDFBF7] shadow-[4px_4px_0px_0px_#1A1A1A] md:col-span-2">
-                      <h3 className="font-black text-lg text-white bg-[#5C4033] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Strategic Initiatives & Macro Comments</h3>
-                      <ul className="space-y-3">
-                        {concallStatusData.summary_data.strategic_initiatives.map((item, idx) => (
-                          <li key={idx} className="flex items-start gap-3">
-                            <CheckCircle className="text-[#5C4033] shrink-0 mt-0.5" size={20} strokeWidth={2.5} />
-                            <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
               </div>
             ) : (
               <div className="brutalist-panel p-4 sm:p-8 flex flex-col border-4 border-brutalist-dark shadow-[4px_4px_0px_0px_#1A1A1A] bg-[#FDFBF7]">
                 <h2 className="text-base sm:text-lg font-black uppercase tracking-tight text-brutalist-dark mb-4 flex items-center gap-2">
-                  <FileText className="text-[#FF6B6B]" size={24} strokeWidth={3} />
+                  <FileText className="text-[#991B1B]" size={24} strokeWidth={3} />
                   Analyze Earnings Call Transcript
                 </h2>
 
                 <form onSubmit={uploadConcall} className="flex flex-col gap-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <input type="text" placeholder="Company Name (e.g. HDFC Bank)" value={concallCompanyName} onChange={e => setConcallCompanyName(e.target.value)} className="border-2 border-black p-3 font-mono text-sm outline-none focus:bg-stone-100" required />
-                    <select value={concallSector} onChange={e => setConcallSector(e.target.value)} className="border-2 border-black p-3 font-mono text-sm outline-none focus:bg-stone-100" required>
-                      <option value="" disabled>Select sector</option>
-                      <option value="Banking">Banking</option>
-                      <option value="NBFC">NBFC</option>
-                      <option value="FMCG">FMCG</option>
-                      <option value="IT Services">IT Services</option>
-                      <option value="Pharmaceuticals">Pharmaceuticals</option>
-                      <option value="Auto & Auto Ancillary">Auto & Auto Ancillary</option>
-                      <option value="Quick Commerce">Quick Commerce</option>
-                      <option value="Real Estate">Real Estate</option>
-                      <option value="Metals & Mining">Metals & Mining</option>
-                      <option value="Oil & Gas">Oil & Gas</option>
-                      <option value="Telecom">Telecom</option>
-                      <option value="Insurance">Insurance</option>
-                      <option value="Cement">Cement</option>
-                      <option value="Retail">Retail</option>
-                      <option value="General Corporate">Other (General Corporate)</option>
-                    </select>
+                    <div className="flex flex-col gap-2">
+                      <select
+                        value={concallSector}
+                        onChange={e => {
+                          setConcallSector(e.target.value);
+                          if (e.target.value !== "Other") {
+                            setCustomSector("");
+                          }
+                        }}
+                        className="border-2 border-black p-3 font-mono text-sm outline-none focus:bg-stone-100 w-full"
+                        required
+                      >
+                        <option value="" disabled>Select sector</option>
+                        <option value="Banking & Finance">Banking & Finance</option>
+                        <option value="Information Technology">Information Technology</option>
+                        <option value="Pharmaceuticals & Healthcare">Pharmaceuticals & Healthcare</option>
+                        <option value="Automobile & Auto Ancillaries">Automobile & Auto Ancillaries</option>
+                        <option value="Fast Moving Consumer Goods">Fast Moving Consumer Goods</option>
+                        <option value="Defence & Aerospace">Defence & Aerospace</option>
+                        <option value="Railways & Transport">Railways & Transport</option>
+                        <option value="Power & Utilities">Power & Utilities</option>
+                        <option value="Infrastructure & Construction">Infrastructure & Construction</option>
+                        <option value="Chemicals & Specialty Chemicals">Chemicals & Specialty Chemicals</option>
+                        <option value="Metals & Mining">Metals & Mining</option>
+                        <option value="Renewable Energy">Renewable Energy</option>
+                        <option value="Oil & Gas">Oil & Gas</option>
+                        <option value="Electronic Manufacturing Services">Electronic Manufacturing Services</option>
+                        <option value="Agriculture & Fertilizers">Agriculture & Fertilizers</option>
+                        <option value="Other">Other (Type custom sector)</option>
+                      </select>
+
+                      {concallSector === "Other" && (
+                        <input
+                          type="text"
+                          placeholder="Type custom sector (e.g. Defense)"
+                          value={customSector}
+                          onChange={e => setCustomSector(e.target.value)}
+                          className="border-2 border-black p-3 font-mono text-sm outline-none bg-yellow-50 focus:bg-yellow-100 transition-colors animate-in slide-in-from-top-2 duration-300"
+                          required
+                        />
+                      )}
+                    </div>
                     <select value={concallQuarter} onChange={e => setConcallQuarter(e.target.value)} className="border-2 border-black p-3 font-mono text-sm outline-none focus:bg-stone-100" required>
                       <option value="Q1">Q1</option>
                       <option value="Q2">Q2</option>
@@ -1391,7 +1693,7 @@ function App() {
                   )}
 
                   {concallError && (
-                    <div className="text-[#FF6B6B] font-bold text-xs uppercase flex items-center gap-2 mt-2">
+                    <div className="text-[#991B1B] font-bold text-xs uppercase flex items-center gap-2 mt-2">
                       <AlertTriangle size={16} /> {concallError}
                     </div>
                   )}
@@ -1399,11 +1701,11 @@ function App() {
                   {concallStatusData && concallStatusData.status === 'PENDING' && (
                     <div className="mt-4 p-3 sm:p-4 border-2 border-brutalist-dark bg-stone-50 font-mono text-[10px] sm:text-xs">
                       <div className="flex justify-between mb-2">
-                        <span className="font-bold text-[#FF6B6B] uppercase">{concallPhaseText}</span>
+                        <span className="font-bold text-[#991B1B] uppercase">{concallPhaseText}</span>
                         <span className="font-bold">{concallProgress}%</span>
                       </div>
                       <div className="w-full h-3 sm:h-4 border-2 border-brutalist-dark bg-white relative overflow-hidden">
-                        <div className="absolute top-0 left-0 h-full bg-[#FF6B6B] transition-all duration-300" style={{ width: `${concallProgress}%` }}>
+                        <div className="absolute top-0 left-0 h-full bg-[#991B1B] transition-all duration-300" style={{ width: `${concallProgress}%` }}>
                           <div className="w-full h-full opacity-20 bg-[repeating-linear-gradient(45deg,transparent,transparent_5px,#000_5px,#000_10px)]"></div>
                         </div>
                       </div>
@@ -1411,7 +1713,7 @@ function App() {
                   )}
 
                   {concallStatusData?.error_message && (
-                    <div className="text-[#FF6B6B] font-bold text-xs flex flex-col gap-1 mt-4 p-3 border-2 border-[#FF6B6B] bg-[#FF6B6B]/10 break-words">
+                    <div className="text-[#991B1B] font-bold text-xs flex flex-col gap-1 mt-4 p-3 border-2 border-[#991B1B] bg-[#991B1B]/10 break-words">
                       <span className="uppercase flex items-center gap-2"><AlertTriangle size={16} /> Error Details:</span>
                       <span className="font-mono">{concallStatusData.error_message}</span>
                     </div>
@@ -1420,7 +1722,7 @@ function App() {
                   <button
                     type="submit"
                     disabled={isConcallUploading || (concallStatusData && !['FAILED', 'COMPLETED'].includes(concallStatusData.status))}
-                    className="mt-4 w-full py-4 px-4 bg-[#FF6B6B] text-white border-2 border-black font-black uppercase tracking-widest hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[4px_4px_0px_0px_#000000] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-none"
+                    className="mt-4 w-full py-4 px-4 bg-[#991B1B] text-white border-2 border-black font-black uppercase tracking-widest hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[4px_4px_0px_0px_#000000] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-x-0 disabled:hover:translate-y-0 disabled:hover:shadow-none"
                   >
                     {isConcallUploading || (concallStatusData && !['FAILED', 'COMPLETED'].includes(concallStatusData.status)) ? 'Processing...' : '[ Ask Questions from this Concall ]'}
                   </button>
@@ -1444,13 +1746,58 @@ function App() {
             </p>
           </div>
           <p className="text-brutalist-dark font-black uppercase tracking-widest text-sm mt-4">
-            Made with <span className="text-[#FF6B6B]">❤️</span> by{' '}
+            Made with <span className="text-[#991B1B]">❤️</span> by{' '}
             <a href="https://www.linkedin.com/in/meetmmodi45" target="_blank" rel="noopener noreferrer" className="hover:text-brutalist-orange hover:underline decoration-2 underline-offset-4 transition-colors">
               Meet Modi
             </a>
           </p>
         </div>
       </footer>
+
+      {isBackendWakingUp && (
+        <div className="fixed inset-0 bg-[#F2EBE3]/90 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+          <div className="brutalist-panel max-w-md w-full p-8 bg-white border-4 border-brutalist-dark shadow-[8px_8px_0px_0px_#1A1A1A] text-center space-y-6 animate-in zoom-in-95 duration-300">
+            <div className="p-4 bg-[#991B1B]/10 rounded-full text-[#991B1B] border-2 border-[#991B1B] w-16 h-16 flex items-center justify-center mx-auto animate-pulse">
+              <Database size={32} />
+            </div>
+            
+            <div className="space-y-2">
+              <h3 className="text-2xl font-black uppercase tracking-tighter text-brutalist-dark">
+                Waking up the server
+              </h3>
+              <p className="text-xs font-mono font-black text-[#991B1B] uppercase tracking-widest">
+                Initializing Backend Services
+              </p>
+            </div>
+
+            <p className="text-xs text-stone-600 font-mono leading-relaxed bg-[#F2EBE3] p-4 border-2 border-black">
+              Our core backend servers sleep during periods of inactivity to save costs. 
+              It takes up to 60 seconds to boot up on your first visit. Thank you for your patience!
+            </p>
+
+            {/* Countdown Progress Bar */}
+            <div className="space-y-2">
+              <div className="flex justify-between font-mono text-xs font-bold uppercase">
+                <span>Booting servers...</span>
+                <span>{coldStartCountdown}s remaining</span>
+              </div>
+              <div className="w-full h-4 border-2 border-black bg-stone-100 relative overflow-hidden">
+                <div 
+                  className="absolute top-0 left-0 h-full bg-[#991B1B] transition-all duration-1000" 
+                  style={{ width: `${((60 - coldStartCountdown) / 60) * 100}%` }}
+                >
+                  <div className="w-full h-full opacity-20 bg-[repeating-linear-gradient(45deg,transparent,transparent_5px,#000_5px,#000_10px)]"></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-[10px] text-stone-500 font-mono flex items-center justify-center gap-2 animate-pulse">
+              <Loader2 size={12} className="animate-spin text-[#991B1B]" />
+              Retrying connection to backend...
+            </div>
+          </div>
+        </div>
+      )}
 
       <GlobalAssistant />
     </div>

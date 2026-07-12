@@ -4,7 +4,7 @@ import traceback
 
 import fitz  # PyMuPDF
 from langchain_core.documents import Document
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from app.services.transcript_chunker import create_structured_chunks
 from langchain_pinecone import PineconeVectorStore
 from langchain_pinecone import PineconeEmbeddings
 import os
@@ -34,12 +34,18 @@ def process_concall_document(document_id: str, file_bytes: bytes, filename: str)
         return
 
     try:
-        # 1. Parse text directly from bytes — no disk I/O
+        # 1. Parse text directly from bytes — no disk I/O, tracking pages
         text_content = ""
+        pages_list = []
         if filename.lower().endswith(".pdf"):
             with fitz.open(stream=file_bytes, filetype="pdf") as doc:
-                for page in doc:
-                    text_content += page.get_text() + "\n"
+                for page_idx, page in enumerate(doc):
+                    page_text = page.get_text()
+                    pages_list.append({
+                        "page_number": page_idx + 1,
+                        "text": page_text
+                    })
+                    text_content += page_text + "\n"
         else:
             # Treat as plain text / txt file
             text_content = file_bytes.decode("utf-8", errors="replace")
@@ -47,24 +53,14 @@ def process_concall_document(document_id: str, file_bytes: bytes, filename: str)
         if not text_content.strip():
             raise ValueError("Extracted text content is empty.")
 
-        # 2. Chunking
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=150
+        # 2. Structure-aware Chunking
+        documents = create_structured_chunks(
+            text_content=text_content,
+            document_id=document_id,
+            company_name=doc_record.company_name,
+            filename=filename,
+            pages_list=pages_list if pages_list else None
         )
-        chunks = text_splitter.split_text(text_content)
-
-        documents = []
-        for chunk in chunks:
-            doc = Document(
-                page_content=chunk,
-                metadata={
-                    "document_id": document_id,
-                    "company_name": doc_record.company_name,
-                    "content_type": "concall_transcript"
-                }
-            )
-            documents.append(doc)
 
         if not documents:
             raise ValueError("No chunks generated from document text.")
@@ -78,13 +74,15 @@ def process_concall_document(document_id: str, file_bytes: bytes, filename: str)
             pinecone_api_key=api_key
         )
 
-        # 4. Push to Pinecone
+        # 4. Push to Pinecone with deterministic IDs
+        ids = [doc.metadata["chunk_id"] for doc in documents]
         PineconeVectorStore.from_documents(
             documents=documents,
             embedding=embeddings,
             index_name=index_name,
             pinecone_api_key=api_key,
-            namespace=document_id  # Isolate per session
+            namespace=document_id,  # Isolate per session
+            ids=ids
         )
 
         # 4.5 Run 3-Stage Summarization

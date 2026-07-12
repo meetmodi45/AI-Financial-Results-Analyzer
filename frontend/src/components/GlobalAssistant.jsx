@@ -61,12 +61,12 @@ const GlobalAssistant = () => {
           {/* Header */}
           <div className="bg-[#1A1A1A] text-white p-3 font-black uppercase tracking-widest border-b-4 border-brutalist-dark flex justify-between items-center shrink-0">
             <div className="flex items-center gap-2">
-              <Bot size={20} className="text-[#FF6B6B]" />
+              <Bot size={20} className="text-[#991B1B]" />
               <span>Ask AI</span>
             </div>
             <button 
               onClick={() => setIsOpen(false)}
-              className="p-1 hover:bg-[#FF6B6B] transition-colors rounded-none border-2 border-transparent hover:border-white"
+              className="p-1 hover:bg-[#991B1B] transition-colors rounded-none border-2 border-transparent hover:border-white"
             >
               <X size={18} />
             </button>
@@ -76,7 +76,7 @@ const GlobalAssistant = () => {
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-stone-50">
             {messages.map((msg, idx) => (
               <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`p-3 max-w-[85%] border-2 border-black font-mono text-xs sm:text-sm shadow-[2px_2px_0px_0px_#000000] ${msg.role === 'user' ? 'bg-[#FF6B6B] text-white' : 'bg-white text-black'}`}>
+                <div className={`p-3 max-w-[85%] border-2 border-black font-mono text-xs sm:text-sm shadow-[2px_2px_0px_0px_#000000] ${msg.role === 'user' ? 'bg-[#991B1B] text-white' : 'bg-white text-black'}`}>
                   {msg.role === 'user' ? (
                     msg.content
                   ) : (
@@ -119,7 +119,7 @@ const GlobalAssistant = () => {
             <button 
               type="submit"
               disabled={isLoading || !input.trim()}
-              className="bg-brutalist-dark text-white p-2 border-2 border-black hover:bg-[#FF6B6B] hover:border-[#FF6B6B] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-brutalist-dark text-white p-2 border-2 border-black hover:bg-[#991B1B] hover:border-[#991B1B] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Send size={18} />
             </button>
@@ -130,7 +130,7 @@ const GlobalAssistant = () => {
       {/* Toggle Button */}
       <button
         onClick={toggleChat}
-        className={`group flex items-center justify-center w-14 h-14 border-4 border-brutalist-dark shadow-[4px_4px_0px_0px_#1A1A1A] transition-all hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[6px_6px_0px_0px_#1A1A1A] ${isOpen ? 'bg-[#FF6B6B] text-white' : 'bg-[#FF6B6B] text-white'}`}
+        className={`group flex items-center justify-center w-14 h-14 border-4 border-brutalist-dark shadow-[4px_4px_0px_0px_#1A1A1A] transition-all hover:-translate-y-1 hover:-translate-x-1 hover:shadow-[6px_6px_0px_0px_#1A1A1A] ${isOpen ? 'bg-[#991B1B] text-white' : 'bg-[#991B1B] text-white'}`}
       >
         {isOpen ? <X size={28} strokeWidth={3} /> : <Bot size={28} strokeWidth={2.5} />}
         

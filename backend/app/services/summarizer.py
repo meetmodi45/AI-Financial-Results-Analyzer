@@ -96,23 +96,29 @@ Return this EXACT JSON structure:
   "quarter":  "{QUARTER} {FY}",
   "sector":   "{SECTOR}",
 
+  "key_takeaways": [
+    "Exactly 3 high-impact executive summary bullet points that capture the absolute most critical strategic and financial takeaways of the call. This is what a fund manager must read first."
+  ],
   "positive": [
-    "Max 8 items. Each item must contain a specific metric OR a critical strategic insight AND the reason management gave. Focus on outperformance, margin expansion, growth acceleration, market share gains, successful new initiatives."
+    "Max 5 items. Each item must contain a specific metric OR a critical strategic insight AND the reason management gave. Focus on outperformance, margin expansion, growth acceleration, market share gains, successful new initiatives."
   ],
   "negative": [
-    "Max 8 items. Each item must contain a specific metric OR a critical strategic insight AND the concern or reason. Focus on misses, elevated costs, stress in any segment, deteriorating ratios, competitive pressure management acknowledged."
+    "Max 5 items. Each item must contain a specific metric OR a critical strategic insight AND the concern or reason. Focus on misses, elevated costs, stress in any segment, deteriorating ratios, competitive pressure management acknowledged."
   ],
   "guidance": [
-    "Max 6 items. ONLY include explicit forward commitments. Must have a timeframe and a number or directional target. Do NOT include vague optimism like we are optimistic about growth. Only hard commitments with conditions."
+    "Max 4 items. ONLY include explicit forward commitments. Must have a timeframe and a number or directional target. Do NOT include vague optimism like we are optimistic about growth. Only hard commitments with conditions."
   ],
   "key_risks_to_watch": [
-    "Max 6 items. Risks management mentioned but did not fully resolve. Things that could invalidate the guidance if they worsen. Include the trigger condition."
+    "Max 4 items. Risks management mentioned but did not fully resolve. Things that could invalidate the guidance if they worsen. Include the trigger condition."
   ],
   "capital_allocation": [
-    "Max 4 items. Specific details on CapEx, debt repayment, dividend payouts, share buybacks, or M&A activities."
+    "Max 3 items. Specific details on CapEx, debt repayment, dividend payouts, share buybacks, or M&A activities."
   ],
   "strategic_initiatives": [
-    "Max 6 items. Important macro commentary, demand environment updates, pricing leverage, new product pipelines, or Q&A pushback themes."
+    "Max 4 items. Important macro commentary, demand environment updates, pricing leverage, new product pipelines, or Q&A pushback themes."
+  ],
+  "suggested_questions": [
+    "Exactly 3 highly-specific, insightful questions (each 10-15 words) that an investor or analyst would want to ask the chatbot about this specific call, based on the key issues, risks, or segment performance discussed. Make them concrete, contextual, and unique to this company and quarter."
   ]
 }}
 
@@ -303,6 +309,7 @@ class ConcallSummarizer:
         except Exception as e:
             logger.error(f"Failed to parse Stage 3 JSON: {e}\nContent: {content}")
             return {
+                "key_takeaways": [],
                 "positive": [],
                 "negative": [],
                 "guidance": [],
