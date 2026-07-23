@@ -283,29 +283,32 @@ function App() {
 
     if (concallStatusData?.status === 'PENDING') {
       setIsConcallAnalyzing(true);
-      setConcallProgress(0);
-      setConcallPhaseText("INITIALIZING VECTOR STORE...");
 
       const runProgress = (current) => {
         if (isCancelled) return;
         let nextProgress = current;
         let delay = 300;
 
-        if (current < 35) {
-          nextProgress = current + 7;
-          delay = 300;
-          setConcallPhaseText("EXTRACTING TEXT CONTENT...");
-        } else if (current < 75) {
-          nextProgress = current + 4;
+        if (current < 25) {
+          nextProgress = current + 3;
           delay = 400;
-          setConcallPhaseText("GENERATING SEMANTIC EMBEDDINGS...");
-        } else if (current < 95) {
+          setConcallPhaseText("EXTRACTING TRANSCRIPT TEXT...");
+        } else if (current < 55) {
+          nextProgress = current + 2;
+          delay = 500;
+          setConcallPhaseText("UPSERTING TO PINECONE CLUSTER...");
+        } else if (current < 80) {
           nextProgress = current + 1;
           delay = 1000;
-          setConcallPhaseText("UPSERTING TO PINECONE CLUSTER...");
+          setConcallPhaseText("SYNTHESIZING EXECUTIVE SUMMARY & GUIDANCE...");
+        } else if (current < 95) {
+          nextProgress = current + 1;
+          delay = 2000;
+          setConcallPhaseText("FINALIZING TAKEAWAYS & RISK MATRIX...");
         } else {
-          nextProgress = current;
-          delay = 1000;
+          nextProgress = 95;
+          delay = 2000;
+          setConcallPhaseText("FINALIZING DASHBOARD INSIGHTS...");
         }
 
         setConcallProgress(nextProgress);
@@ -313,7 +316,15 @@ function App() {
       };
 
       runProgress(0);
-    } else {
+    } else if (concallStatusData?.status === 'COMPLETED') {
+      isCancelled = true;
+      clearTimeout(timeoutId);
+      setConcallProgress(100);
+      setConcallPhaseText("PROCESSING COMPLETE!");
+      setTimeout(() => setIsConcallAnalyzing(false), 500);
+    } else if (concallStatusData?.status === 'FAILED') {
+      isCancelled = true;
+      clearTimeout(timeoutId);
       setIsConcallAnalyzing(false);
     }
 
