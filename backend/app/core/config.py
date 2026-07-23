@@ -26,10 +26,12 @@ class Settings(BaseSettings):
 
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     GROQ_API_KEY: str | None = os.getenv("GROQ_API_KEY")
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
     PINECONE_API_KEY: str | None = os.getenv("PINECONE_API_KEY")
     PINECONE_INDEX_NAME: str | None = os.getenv("PINECONE_INDEX_NAME", "financial-reports-index")
     GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY")
     GOOGLE_API_KEY: str | None = os.getenv("GOOGLE_API_KEY")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
     class Config:
         extra = "ignore"

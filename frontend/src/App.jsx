@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Activity, FileText, Upload, AlertTriangle, TrendingUp, BarChart3, Database, FileDigit, Calendar, CheckCircle, DollarSign, TrendingDown, Menu, X, Star, MessageSquare, Loader2 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
@@ -152,6 +152,17 @@ function App() {
   const [chatMessages, setChatMessages] = useState([]);
   const [currentQuery, setCurrentQuery] = useState("");
   const [isChatLoading, setIsChatLoading] = useState(false);
+
+  const chatContainerRef = useRef(null);
+
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
+  }, [chatMessages, isChatLoading]);
 
   // New Interactive Loader States
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -1327,7 +1338,7 @@ function App() {
                       </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                    <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-6">
                       {chatMessages.length === 0 && (
                         <div className="flex flex-col items-center justify-center h-full text-center p-6 space-y-4 my-auto">
                           <div className="p-3 bg-[#991B1B]/10 rounded-full text-[#991B1B] border-2 border-[#991B1B]">

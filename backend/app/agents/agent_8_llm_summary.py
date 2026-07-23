@@ -1,6 +1,7 @@
 import logging
 from app.core.db import SessionLocal
 from app.models.document import Document, ProcessingStatus
+from app.core.config import settings
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
@@ -35,7 +36,7 @@ def process_llm_summary(document_id: str):
         )
         
         logger.info("[Agent 8] Invoking Groq for LLM Summarization...")
-        llm = ChatGroq(model="meta-llama/llama-4-scout-17b-16e-instruct", temperature=0.2)
+        llm = ChatGroq(model=settings.GROQ_MODEL, temperature=0.2)
         structured_llm = llm.with_structured_output(LLMSummarySchema)
         
         system_prompt = (

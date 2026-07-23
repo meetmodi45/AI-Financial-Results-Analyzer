@@ -10,6 +10,7 @@ from langchain_pinecone import PineconeEmbeddings
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 
+from app.core.config import settings
 from app.core.db import get_db
 from app.models.concall import ConcallDocument
 from app.services.concall_processor import process_concall_document
@@ -50,7 +51,8 @@ async def upload_and_process_concall(
     # is mathematically identical. This prevents cache misses due to typos.
     existing = db.query(ConcallDocument).filter(
         ConcallDocument.file_hash == file_hash,
-        ConcallDocument.processed_status == "COMPLETED"
+        ConcallDocument.processed_status == "COMPLETED",
+        ConcallDocument.summary_data.isnot(None)
     ).first()
 
     if existing:
@@ -141,26 +143,20 @@ async def chat_with_concall(request: ChatRequest, db: Session = Depends(get_db))
         # Generate alternative queries for Multi-Query Expansion
         try:
             import re
-            query_gen_llm = ChatGroq(model="meta-llama/llama-4-scout-17b-16e-instruct", temperature=0.1)
+            query_gen_llm = ChatGroq(model=settings.GROQ_MODEL, temperature=0.1)
             query_gen_prompt = (
-                "You are an AI language model assistant. Your task is to generate 3 alternative versions of the "
-                "user query to retrieve relevant documents from a vector database.\n"
-                "By generating multiple perspectives on the user query, your goal is to help the user retrieve "
-                "non-contiguous key contexts (e.g., physical assets, locations, audit/monitoring, or partner/order details) "
-                "that may be split across different sections of a transcript.\n\n"
-                "Generate exactly 3 alternative queries, focusing on different aspects of the topic:\n"
-                "1. General financial/audit/compliance monitoring of the topic\n"
-                "2. Physical assets, locations, projects, or factories related to the topic\n"
-                "3. Operational partners, collaborations, or initial orders related to the topic\n\n"
-                "Provide these alternative queries separated by newlines, one per line. Do not include any extra text, numbers, prefix labels, or explanation.\n\n"
-                f"Original query: {request.query}"
+                "You are an AI assistant helping retrieve relevant passages from an earnings call transcript.\n"
+                "Your task is to rephrase the user's query into 2 alternative search queries using different financial terms, synonyms, or related industry jargon.\n"
+                "Do NOT change the subject of the question. Keep the alternative queries strictly focused on the exact same topic as the original query.\n"
+                "Provide the 2 alternative queries separated by newlines, one per line. Do not include extra text, numbers, or explanations.\n\n"
+                f"User Query: {request.query}"
             )
             query_gen_res = query_gen_llm.invoke(query_gen_prompt)
             alt_queries = [request.query]
             for q in query_gen_res.content.strip().split("\n"):
                 q_clean = q.strip().strip("-*").strip()
                 q_clean = re.sub(r'^\d+\.\s*', '', q_clean)
-                if q_clean:
+                if q_clean and q_clean.lower() != request.query.lower():
                     alt_queries.append(q_clean)
             alt_queries = list(dict.fromkeys(alt_queries))
             logger.info(f"Multi-Query Expansion generated queries: {alt_queries}")
@@ -168,37 +164,57 @@ async def chat_with_concall(request: ChatRequest, db: Session = Depends(get_db))
             logger.warning(f"Failed to generate alternative queries: {q_err}. Falling back to original query.")
             alt_queries = [request.query]
 
-        # Execute multi-query retrieval with deduplication
-        all_retrieved_docs = []
+        # Execute multi-query retrieval: prioritize primary query results first
+        selected_docs = []
         seen_chunk_ids = set()
-        for q in alt_queries:
+
+        for q_idx, q in enumerate(alt_queries):
+            k_val = 5 if q_idx == 0 else 3
             docs = retrieve_with_neighbors(
                 vectorstore=vectorstore,
                 query=q,
                 document_id=request.document_id,
-                k=4
+                k=k_val
             )
             for d in docs:
                 c_id = d.metadata.get("chunk_id") or d.metadata.get("chunk_index") or d.page_content
                 if c_id not in seen_chunk_ids:
                     seen_chunk_ids.add(c_id)
-                    all_retrieved_docs.append(d)
+                    selected_docs.append(d)
+                if len(selected_docs) >= 12:
+                    break
+            if len(selected_docs) >= 12:
+                break
 
-        # Chronological sort & limit to top 8 chunks to keep context size safe
-        all_retrieved_docs.sort(key=lambda d: int(d.metadata.get("chunk_index") or 0))
-        retrieved_docs = all_retrieved_docs[:8]
-        context_text = "\n\n".join([d.page_content for d in retrieved_docs])
+        # Build structured context with page numbers and speaker headers for precise citations
+        formatted_blocks = []
+        for d in selected_docs:
+            p_start = d.metadata.get("start_page") or d.metadata.get("page") or d.metadata.get("page_num") or 1
+            p_end = d.metadata.get("end_page") or p_start
+            page_str = f"Page {p_start}" if p_start == p_end else f"Pages {p_start}-{p_end}"
+            
+            speakers = d.metadata.get("speakers")
+            speaker_str = ""
+            if speakers:
+                if isinstance(speakers, list):
+                    speaker_str = f" | Speakers: {', '.join(speakers)}"
+                else:
+                    speaker_str = f" | Speaker: {speakers}"
+                    
+            formatted_blocks.append(f"--- [Source: {page_str}{speaker_str}] ---\n{d.page_content}")
 
-        llm = ChatGroq(model="meta-llama/llama-4-scout-17b-16e-instruct", temperature=0.2)
+        context_text = "\n\n".join(formatted_blocks)[:14000]
+
+        llm = ChatGroq(model=settings.GROQ_MODEL, temperature=0.2)
 
         system_prompt = (
             "You are an expert financial analyst. Answer the user's question about the earnings call transcript "
-            "based strictly on the context provided. If the answer cannot be found in the context, say so.\n\n"
-            "Format your answer cleanly using Markdown:\n"
-            "- Use bold formatting (**bold**) for key metrics, numbers, company names, and crucial conclusions.\n"
-            "- Present lists using clean bullet points (* or 1., 2., 3.) and ALWAYS place each list item on its own new line with spacing.\n"
-            "- Use double newlines to separate distinct paragraphs or points for readability.\n"
-            "- Keep descriptions sharp, clear, and professional.\n\n"
+            "thoroughly and accurately based on the context provided.\n\n"
+            "Guidelines:\n"
+            "- Use bold formatting (**bold**) for key metrics, monetary values, percentage numbers, and important conclusions.\n"
+            "- Present information using clean, spaced bullet points (* or 1., 2.) so it is easy to read.\n"
+            "- Append source citations from the context headers when available, e.g. [Page X, Speaker Name].\n"
+            "- If the topic is not mentioned in the transcript, state that it is not covered.\n\n"
             "Context:\n{context}"
         )
 
@@ -212,7 +228,7 @@ async def chat_with_concall(request: ChatRequest, db: Session = Depends(get_db))
 
         return {
             "answer": response.content,
-            "sources": [{"content": d.page_content, "metadata": d.metadata} for d in retrieved_docs]
+            "sources": [{"content": d.page_content, "metadata": d.metadata} for d in selected_docs]
         }
     except Exception as e:
         logger.error(f"Chat failed for document_id {request.document_id}: {e}", exc_info=True)

@@ -12,18 +12,17 @@ from datetime import datetime, timezone
 
 class BaseResearchAgent:
     def __init__(self):
-        # Primary Model: Gemini 2.0 Flash (or whatever the user has API key for, 
-        # usually falls back to models/gemini-1.5-flash if 2.0 is not available in their region yet)
+        # Primary Model: Gemini
         self.primary_llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash", 
+            model=settings.GEMINI_MODEL, 
             temperature=0.2,
             max_tokens=1000,
             api_key=settings.GEMINI_API_KEY or settings.GOOGLE_API_KEY
         )
         
-        # Fallback Model: Groq Llama 4 Scout (30k TPM free tier)
+        # Fallback Model: Groq (llama-3.3-70b-versatile)
         self.fallback_llm = ChatGroq(
-            model="meta-llama/llama-4-scout-17b-16e-instruct", 
+            model=settings.GROQ_MODEL, 
             temperature=0.2,
             max_tokens=1000,
             api_key=settings.GROQ_API_KEY

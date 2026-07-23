@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Optional
 import logging
+from app.core.config import settings
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
@@ -71,7 +72,7 @@ async def ask_assistant(request: ChatRequest):
         # ── Layer 2: LLM call with strict system prompt ──────────────────────
         llm = ChatGroq(
             temperature=0.3,
-            model_name="meta-llama/llama-4-scout-17b-16e-instruct",
+            model_name=settings.GROQ_MODEL,
             api_key=api_key
         )
 

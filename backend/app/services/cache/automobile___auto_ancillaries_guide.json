@@ -1,0 +1,122 @@
+{
+  "core_metrics": [
+    "Revenue growth",
+    "EBITDA margin",
+    "Net profit",
+    "Operating expenses",
+    "Capex",
+    "Debt-to-equity ratio",
+    "Return on equity",
+    "Cash conversion cycle",
+    "Working capital turnover",
+    "Gross margin"
+  ],
+  "causality_phrases": [
+    "Driven by",
+    "Due to",
+    "Led by",
+    "Resulted in",
+    "Caused by",
+    "Attributed to",
+    "Contribution from",
+    "Impact of",
+    "Effect of",
+    "Influenced by"
+  ],
+  "guidance_phrases": [
+    "Expect to",
+    "Plan to",
+    "Commit to",
+    "Targeting",
+    "Guidance for",
+    "Outlook for",
+    "Forecast for",
+    "Anticipate",
+    "Projecting",
+    "Estimate"
+  ],
+  "risk_phrases": [
+    "Headwinds",
+    "Risks",
+    "Concerns",
+    "Challenges",
+    "Uncertainties",
+    "Volatility",
+    "Disruptions",
+    "Delays",
+    "Cost pressures",
+    "Supply chain issues"
+  ],
+  "sector_specific_topics": [
+    "Electric vehicle sales",
+    "Hybrid vehicle production",
+    "Automotive component exports",
+    "Two-wheeler market share",
+    "Four-wheeler demand",
+    "Tractor sales",
+    "Commercial vehicle market",
+    "Automotive aftermarket growth",
+    "Supply chain optimization",
+    "Digital transformation"
+  ],
+  "management_commitment_phrases": [
+    "Commit to deliver",
+    "Plan to achieve",
+    "Expect to meet",
+    "Targeting to reach",
+    "Guidance for the future",
+    "Outlook for the next quarter",
+    "Forecast for the next year",
+    "Anticipate strong growth",
+    "Projecting high margins",
+    "Estimate robust demand"
+  ],
+  "positive_signal_words": [
+    "Strong",
+    "Growth",
+    "Increase",
+    "Upside",
+    "Beat",
+    "Outperform",
+    "Exceed",
+    "Surpass",
+    "Accelerate",
+    "Boost"
+  ],
+  "negative_signal_words": [
+    "Decline",
+    "Decrease",
+    "Downside",
+    "Miss",
+    "Underperform",
+    "Fall short",
+    "Lag",
+    "Slip",
+    "Weaken",
+    "Contract"
+  ],
+  "numbers_context": [
+    "Crore",
+    "INR",
+    "%",
+    "bps",
+    "YoY",
+    "QoQ",
+    "Million",
+    "Billion",
+    "Percent",
+    "Base"
+  ],
+  "irrelevant_content": [
+    "Thank you for the question",
+    "Operator please",
+    "Next question",
+    "Last question",
+    "No further questions",
+    "Thank you for joining",
+    "This concludes the call",
+    "We will now move on",
+    "Next topic",
+    "Moving on"
+  ]
+}

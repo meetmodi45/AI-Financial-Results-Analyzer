@@ -2,6 +2,8 @@ import os
 import json
 import re
 from typing import Dict, Any, List
+from app.core.config import settings
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 import logging
@@ -17,46 +19,57 @@ STAGE_1_USER = """Company  : {COMPANY_NAME}
 Sector   : {SECTOR}
 Quarter  : {QUARTER} {FY}
 
-Generate an exhaustive extraction guide for this
+Generate a concise extraction guide for this
 earnings call transcript. This guide will be used to
-score and filter sentences using TF-IDF, so every
-list must be as comprehensive as possible.
+score and filter sentences using TF-IDF.
 
-Return this EXACT JSON structure — minimum 15 items
-per list, maximum 30:
+Return this EXACT JSON structure — minimum 5 items per list, maximum 10 (keep each item short):
 
 {{
   "core_metrics": [
-    "Every key financial metric, ratio, and KPI that a buy-side analyst would track for a {SECTOR} company. Include full names AND common abbreviations. Think P&L metrics, balance sheet ratios, operational efficiency ratios, and segment-level KPIs."
+    "Key financial metrics and KPIs for a {SECTOR} company (max 10 items)."
   ],
   "causality_phrases": [
-    "Phrases that signal WHY a result happened. Management uses these to explain causation. Include: driven by, due to, on account of, led by, owing to, as a result of, attributed to, primarily because, offset by, cushioned by, supported by, impacted by, hurt by, dragged by, aided by, boosted by, weighed down by, partly because, which was driven, stemming from, underpinned by, reflecting, consequent to"
+    "Phrases signaling why results happened (e.g. driven by, due to, led by)."
   ],
   "guidance_phrases": [
-    "Phrases that signal FUTURE commitments or management expectations. These sentences contain the investment thesis. Include: we expect, we guide, we target, we aspire to, going forward, by next quarter, we are confident of, our aspiration is, we will achieve, trajectory suggests, we anticipate, in the medium term, over the next few quarters, we remain committed, our guidance is, we reiterate, we are on track to, by end of fiscal, we project, our aim is, we plan to, we intend to"
+    "Phrases signaling future commitments or management expectations."
   ],
   "risk_phrases": [
-    "Phrases that signal headwinds, risks, or management acknowledging problems even without quoting a number. Include: headwind, pressure on, challenged by, we are watchful, risk remains, we are cautious, stress in, elevated, we are monitoring, uncertain, competitive intensity, we cannot rule out, remains a concern, softness in, moderation in, weak demand, muted, slowing, deterioration, we are watching closely, not out of the woods, continued pressure, structural challenge"
+    "Phrases signaling headwinds, risks, or concerns."
   ],
   "sector_specific_topics": [
-    "Unique business topics, product lines, customer segments, regulatory items, and strategic themes specific to {SECTOR} that analysts always probe. Be exhaustive — think about every sub-segment, product type, regulatory ratio, channel, and geography that matters for {SECTOR} in India."
+    "Unique business topics or product lines specific to {SECTOR} (max 10 short items)."
   ],
   "management_commitment_phrases": [
-    "Phrases where management makes a specific commitment, defends a decision, or reiterates a position. High-signal even without numbers. Include: we are committed to, we will not compromise on, our stated goal is, we have guided for, we maintain our guidance, we reiterate, we are on track, unchanged from our earlier guidance, we have delivered on, we stand by, non-negotiable for us, our philosophy is, we will not participate in, firm commitment"
+    "Phrases where management makes a specific commitment."
   ],
   "positive_signal_words": [
-    "Words and short phrases that strongly indicate good news, improvement, or outperformance in a {SECTOR} context. Should include sector-specific terms for positive outcomes alongside generic terms like: recovery, improvement, uptick, normalizing, resilient, robust, ahead of guidance, strong traction, market share gain, expansion, accretion, stable, healthy, encouraging, improving trajectory, best ever, record, all-time high, sequential improvement, beat"
+    "Words and short phrases indicating good news or growth."
   ],
   "negative_signal_words": [
-    "Words and short phrases that strongly indicate bad news, deterioration, or underperformance. Include sector-specific negative terms alongside generic: stress, elevated, deterioration, pressure, contraction, headwind, below expectation, slowdown, moderation, caution, miss, sequential decline, year-on-year decline, subdued, muted, weak, challenging environment, we were impacted, drag, adversely, shortfall"
+    "Words and short phrases indicating bad news or margin pressure."
   ],
   "numbers_context": [
-    "Units, scales, and formats used in {SECTOR} financials so TF-IDF finds sentences with real data points. Include: basis points, bps, crore, INR, percent, percentage points, million, billion, X times, ratio, per quarter, annualized, run rate, sequential, YoY, QoQ, HoH, lakh crore, pb, per share, EPS, per unit, per store, per employee, absolute number, percentage, multiple"
+    "Units and scales used in {SECTOR} financials (crore, INR, %, bps, YoY, QoQ)."
   ],
   "irrelevant_content": [
-    "Phrases that strongly indicate a sentence is procedural, boilerplate, or has zero financial signal. These sentences will be PENALIZED and removed. Include: thank you for the question, that is a great question, as I mentioned earlier, let me hand it over to, operator please go ahead, we will take the next question, ladies and gentlemen, you may now disconnect, for your information and records, safe harbour statement, pursuant to regulation, forward-looking statements, not been subjected to audit, good evening everyone, welcome to the earnings call, I will now hand over, with this I conclude, no further questions"
+    "Procedural boilerplate phrases to ignore (thank you for question, operator please)."
   ]
 }}"""
+
+DEFAULT_DOMAIN_GUIDE = {
+    "core_metrics": ["Revenue", "EBITDA", "Net Profit", "PAT", "EPS", "Margin", "YoY Growth", "QoQ Growth", "Volume", "Realization", "CapEx", "Debt", "Free Cash Flow"],
+    "causality_phrases": ["driven by", "due to", "on account of", "led by", "owing to", "as a result of", "attributed to", "primarily because", "offset by", "supported by", "impacted by", "boosted by", "weighed down by"],
+    "guidance_phrases": ["we expect", "we guide", "we target", "going forward", "by next quarter", "we are confident of", "we anticipate", "over the next few quarters", "we remain committed", "our guidance is", "we project", "we plan to"],
+    "risk_phrases": ["headwind", "pressure on", "challenged by", "risk remains", "we are cautious", "stress in", "elevated", "uncertain", "competitive intensity", "softness in", "weak demand", "muted", "slowing", "deterioration"],
+    "sector_specific_topics": ["market share", "capacity expansion", "order book", "client addition", "raw material cost", "pricing power", "channel inventory", "regulatory compliance", "product mix", "exports"],
+    "management_commitment_phrases": ["we are committed to", "our stated goal is", "we have guided for", "we maintain our guidance", "we reiterate", "we are on track"],
+    "positive_signal_words": ["recovery", "improvement", "uptick", "normalizing", "resilient", "robust", "ahead of guidance", "strong traction", "market share gain", "expansion", "growth", "record"],
+    "negative_signal_words": ["stress", "elevated", "deterioration", "pressure", "contraction", "headwind", "below expectation", "slowdown", "moderation", "caution", "miss", "decline", "drag"],
+    "numbers_context": ["basis points", "bps", "crore", "INR", "percent", "million", "billion", "ratio", "per quarter", "YoY", "QoQ", "per share", "EPS"],
+    "irrelevant_content": ["thank you for the question", "operator please go ahead", "safe harbour statement", "ladies and gentlemen", "good evening everyone", "welcome to the earnings call", "I will now hand over"]
+}
 
 STAGE_3_SYSTEM = """You are a senior equity research analyst writing a
 concise brief for a fund manager who has 3 minutes
@@ -142,9 +155,21 @@ except OSError as e:
 
 class ConcallSummarizer:
     def __init__(self):
-        # We use a cheap, fast model for Stage 1, and the main model for Stage 3
-        # Llama 3 is great for strict JSON
-        self.llm = ChatGroq(model="meta-llama/llama-4-scout-17b-16e-instruct", temperature=0)
+        fallback_llm = ChatGroq(model=settings.GROQ_MODEL, temperature=0)
+        api_key = settings.GEMINI_API_KEY or settings.GOOGLE_API_KEY
+        if api_key:
+            try:
+                primary_llm = ChatGoogleGenerativeAI(
+                    model=settings.GEMINI_MODEL,
+                    temperature=0,
+                    api_key=api_key
+                )
+                self.llm = primary_llm.with_fallbacks([fallback_llm])
+            except Exception as e:
+                logger.warning(f"Failed to initialize ChatGoogleGenerativeAI, falling back to Groq: {e}")
+                self.llm = fallback_llm
+        else:
+            self.llm = fallback_llm
         self._vectorizer = None  # Lazily initialized to avoid import-time sklearn crash
 
     def _get_cache_path(self, sector: str) -> str:
@@ -190,8 +215,8 @@ class ConcallSummarizer:
                 json.dump(guide, f, indent=2)
             return guide
         except Exception as e:
-            logger.error(f"Failed to parse Stage 1 JSON: {e}\nContent: {content}")
-            return {"irrelevant_content": ["thank you", "operator"]}
+            logger.error(f"Failed to parse Stage 1 JSON: {e}. Falling back to default domain guide.")
+            return DEFAULT_DOMAIN_GUIDE
 
     def _clean_text(self, text: str) -> List[str]:
         # Strip legal headers, moderator lines, compress speaker names, remove page markers
@@ -273,14 +298,22 @@ class ConcallSummarizer:
         # Sort by score descending
         final_scores.sort(key=lambda x: x[0], reverse=True)
         
-        # Keep top 80%
-        keep_count = max(1, int(len(sentences) * 0.80))
-        top_sentences = final_scores[:keep_count]
+        # Select top TF-IDF scored sentences up to MAX_CHARS safety limit (12,000 chars ≈ 3,000 tokens)
+        # This strictly prevents Groq 413 rate limit errors (6,000 TPM limit on free tier)
+        selected_sentences = []
+        char_count = 0
+        MAX_CHARS = 12000
         
-        # Re-sort by original index to maintain chronological order
-        top_sentences.sort(key=lambda x: x[1])
+        for score, idx, sentence in final_scores:
+            if char_count + len(sentence) > MAX_CHARS:
+                break
+            selected_sentences.append((idx, sentence))
+            char_count += len(sentence)
+            
+        # Re-sort by original index to maintain chronological narrative order
+        selected_sentences.sort(key=lambda x: x[0])
         
-        filtered_transcript = "\n".join([s[2] for s in top_sentences])
+        filtered_transcript = "\n".join([s[1] for s in selected_sentences])
         return filtered_transcript
 
     def stage_3_summarize(self, company_name: str, sector: str, quarter: str, fy: str, filtered_transcript: str) -> Dict[str, Any]:

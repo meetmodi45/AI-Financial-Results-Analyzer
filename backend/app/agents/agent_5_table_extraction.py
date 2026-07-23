@@ -6,6 +6,7 @@ from app.core.db import SessionLocal
 from app.models.document import Document, ProcessingStatus
 from app.schemas.financial import FinancialRawSchema
 
+from app.core.config import settings
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -91,12 +92,14 @@ def process_tables(document_id: str):
                 if p > 0:
                     target_pages.add(p - 1)
 
-        # Slice the text array
+        # Slice the text array & cap at 12,000 chars to fit within TPM limits
         compiled_text = ""
         for p in sorted(list(target_pages)):
             if str(p) in extracted_text:
                 compiled_text += f"\n--- PAGE {p} ---\n{extracted_text[str(p)]}\n"
         
+        compiled_text = compiled_text[:12000]
+
         if not compiled_text.strip():
             raise ValueError("No financial data could be extracted; targeted context is empty.")
 
@@ -104,7 +107,7 @@ def process_tables(document_id: str):
 
         # 2. Invoke LLM Engine
         logger.info("[Agent5] Invoking Groq with structured output...")
-        llm = ChatGroq(model="meta-llama/llama-4-scout-17b-16e-instruct", temperature=0.0)
+        llm = ChatGroq(model=settings.GROQ_MODEL, temperature=0.0)
         structured_llm = llm.with_structured_output(FinancialRawSchema)
 
         system_prompt = (
