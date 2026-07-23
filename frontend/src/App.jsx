@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Activity, FileText, Upload, AlertTriangle, TrendingUp, BarChart3, Database, FileDigit, Calendar, CheckCircle, DollarSign, TrendingDown, Menu, X, Star, MessageSquare, Loader2 } from 'lucide-react';
+import { Activity, FileText, Upload, AlertTriangle, TrendingUp, BarChart3, Database, FileDigit, Calendar, CheckCircle, DollarSign, TrendingDown, Menu, X, Star, MessageSquare, Loader2, Sparkles } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 import GlobalAssistant from './components/GlobalAssistant';
 import ResearchDashboard from './components/ResearchDashboard';
@@ -798,29 +798,94 @@ function App() {
 
                   {/* Quick Metrics (Appears when completed) */}
                   {statusData?.analysis_results && (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-8 mt-6">
+                    <div className="mt-6">
+
+
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-8">
                       {[
-                        { label: 'Rev QoQ', key: 'qoq_growth', icon: <TrendingUp size={14} /> },
-                        { label: 'Rev YoY', key: 'yoy_growth', icon: <TrendingUp size={14} /> },
-                        { label: 'Net Margin', key: 'net_margin', icon: <DollarSign size={14} /> },
-                        { label: 'PAT QoQ', key: 'pat_qoq', icon: <Activity size={14} /> },
-                        { label: 'PAT YoY', key: 'pat_yoy', icon: <Activity size={14} /> },
-                        { label: 'EPS YoY', key: 'eps_yoy', icon: <TrendingUp size={14} /> },
-                      ].map(({ label, key, icon }) => {
-                        const val = statusData.analysis_results[key];
-                        const isNull = val === null || val === undefined;
-                        const isPositive = val > 0;
-                        const isNegative = val < 0;
+                        {
+                          label: 'REV YOY',
+                          value: statusData.analysis_results.yoy_growth,
+                          unit: '%',
+                          isPercent: true,
+                          subtitle: statusData.analysis_results.qoq_growth != null 
+                            ? `QoQ: ${statusData.analysis_results.qoq_growth > 0 ? '+' : ''}${statusData.analysis_results.qoq_growth}%`
+                            : 'Top-line Growth',
+                          icon: <TrendingUp size={14} />
+                        },
+                        {
+                          label: 'PAT YOY',
+                          value: statusData.analysis_results.pat_yoy,
+                          unit: '%',
+                          isPercent: true,
+                          subtitle: statusData.analysis_results.pat_qoq != null
+                            ? `QoQ: ${statusData.analysis_results.pat_qoq > 0 ? '+' : ''}${statusData.analysis_results.pat_qoq}%`
+                            : 'Net Profit Growth',
+                          icon: <Activity size={14} />
+                        },
+                        {
+                          label: 'EBITDA MARGIN',
+                          value: statusData.analysis_results.ebitda_margin,
+                          unit: '%',
+                          isPercent: false,
+                          subtitle: 'Core Operational Margin',
+                          icon: <BarChart3 size={14} />
+                        },
+                        {
+                          label: 'NET MARGIN',
+                          value: statusData.analysis_results.net_margin,
+                          unit: '%',
+                          isPercent: false,
+                          subtitle: 'PAT / Total Income',
+                          icon: <DollarSign size={14} />
+                        },
+                        {
+                          label: 'EPS YOY',
+                          value: statusData.analysis_results.eps_yoy,
+                          unit: '%',
+                          isPercent: true,
+                          subtitle: statusData.analysis_results.basic_eps != null
+                            ? `Basic EPS: ₹${statusData.analysis_results.basic_eps}`
+                            : 'Per-Share Growth',
+                          icon: <TrendingUp size={14} />
+                        },
+                        {
+                          label: 'REVENUE (Q)',
+                          value: statusData.analysis_results.total_income_q_cr,
+                          unit: ' Cr',
+                          prefix: '₹',
+                          isPercent: false,
+                          subtitle: statusData.analysis_results.pat_q_current_cr != null
+                            ? `PAT: ₹${typeof statusData.analysis_results.pat_q_current_cr === 'number' ? statusData.analysis_results.pat_q_current_cr.toFixed(2) : statusData.analysis_results.pat_q_current_cr} Cr`
+                            : 'Quarterly Scale',
+                          icon: <FileDigit size={14} />
+                        },
+                      ].map(({ label, value, unit, prefix, isPercent, subtitle, icon }) => {
+                        const isNull = value === null || value === undefined;
+                        const isPositive = isPercent && value > 0;
+                        const isNegative = isPercent && value < 0;
+                        const formattedVal = typeof value === 'number' ? Number(value.toFixed(2)).toLocaleString() : value;
                         return (
-                          <div key={key} className="brutalist-card p-4">
-                            <div className="text-brutalist-dark text-xs font-bold font-mono uppercase tracking-widest mb-1 flex items-center gap-2 border-b-2 border-brutalist-dark pb-2 mb-2">{icon} {label}</div>
-                            <div className={`text-2xl font-black tracking-tighter ${isNull ? 'text-brutalist-dark/40' : isPositive ? 'text-[#2E6F40]' : isNegative ? 'text-[#D95A2B]' : 'text-brutalist-dark'}`}>
-                              {isNull ? 'N/A' : `${val}%${isPositive ? ' ↑' : isNegative ? ' ↓' : ''}`}
+                          <div key={label} className="brutalist-card p-4 flex flex-col justify-between">
+                            <div>
+                              <div className="text-brutalist-dark text-xs font-bold font-mono uppercase tracking-widest mb-1 flex items-center gap-2 border-b-2 border-brutalist-dark pb-2 mb-2">
+                                {icon} {label}
+                              </div>
+                              <div className={`text-2xl font-black tracking-tighter ${isNull ? 'text-brutalist-dark/40' : isPositive ? 'text-[#2E6F40]' : isNegative ? 'text-[#D95A2B]' : 'text-brutalist-dark'}`}>
+                                {isNull 
+                                  ? 'N/A' 
+                                  : `${prefix || ''}${formattedVal}${unit || ''}${isPositive ? ' ↑' : isNegative ? ' ↓' : ''}`
+                                }
+                              </div>
+                            </div>
+                            <div className="text-sm font-mono font-bold text-brutalist-dark/90 tracking-tight mt-2 border-t border-brutalist-dark/20 pt-1.5">
+                              {subtitle}
                             </div>
                           </div>
                         );
                       })}
                     </div>
+                  </div>
                   )}
                 </div>
               </div>
@@ -937,59 +1002,55 @@ function App() {
 
                 {/* AI Summary */}
                 <div className="brutalist-panel p-8">
-                  <h3 className="text-xl font-black uppercase tracking-tight text-brutalist-dark mb-6 border-b-4 border-brutalist-dark pb-4">Analyst Summary</h3>
+                  <h3 className="text-xl font-black uppercase tracking-tight text-brutalist-dark mb-6 border-b-4 border-brutalist-dark pb-4 flex items-center gap-2">
+                    <Sparkles size={24} className="text-brutalist-orange" /> Key Financial Takeaways
+                  </h3>
                   {statusData?.nlp_summary && (
-                    <div className="space-y-6">
-                      <div className="p-4 border-4 border-brutalist-dark bg-white shadow-[4px_4px_0px_0px_#1A1A1A]">
-                        <h4 className="text-sm font-black text-brutalist-dark mb-2 uppercase tracking-widest bg-brutalist-orange text-white inline-block px-2 py-1">Executive Overview</h4>
-                        {Array.isArray(statusData.nlp_summary.executive_summary) ? (
-                          <ul className="space-y-2 list-disc pl-5 marker:text-brutalist-orange">
-                            {statusData.nlp_summary.executive_summary.map((pt, i) => (
-                              <li key={i} className="text-brutalist-dark font-medium leading-relaxed">{pt}</li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="text-brutalist-dark font-medium leading-relaxed">{statusData.nlp_summary.executive_summary}</p>
-                        )}
-                      </div>
+                    <div className="p-6 border-4 border-brutalist-dark bg-white shadow-[4px_4px_0px_0px_#1A1A1A]">
+                      {Array.isArray(statusData.nlp_summary.executive_summary) && statusData.nlp_summary.executive_summary.length > 0 ? (
+                        <ul className="space-y-3">
+                          {statusData.nlp_summary.executive_summary.map((pt, i) => (
+                            <li key={i} className="text-brutalist-dark font-medium leading-relaxed flex items-start gap-3">
+                              <span className="bg-brutalist-dark text-white font-black text-xs px-2 py-0.5 mt-0.5 rounded-none shrink-0">{i + 1}</span>
+                              <span>{pt}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-brutalist-dark font-medium leading-relaxed">{statusData.nlp_summary.executive_summary || "No summary available."}</p>
+                      )}
 
-                      <div className="p-4 border-4 border-brutalist-dark bg-white shadow-[4px_4px_0px_0px_#1A1A1A]">
-                        <h4 className="text-sm font-black text-brutalist-dark mb-2 uppercase tracking-widest bg-brutalist-green text-white inline-block px-2 py-1">Retail Investor Context</h4>
-                        {Array.isArray(statusData.nlp_summary.investor_explanation) ? (
-                          <ul className="space-y-2 list-disc pl-5 marker:text-brutalist-green">
-                            {statusData.nlp_summary.investor_explanation.map((pt, i) => (
-                              <li key={i} className="text-brutalist-dark font-medium leading-relaxed">{pt}</li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="text-brutalist-dark font-medium leading-relaxed">{statusData.nlp_summary.investor_explanation}</p>
-                        )}
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-4">
-                        <div className="border-t-4 border-brutalist-dark pt-4">
-                          <h4 className="text-sm font-black text-brutalist-green mb-3 uppercase tracking-widest">Key Highlights</h4>
-                          <ul className="space-y-2">
-                            {(statusData.nlp_summary.highlights || []).map((h, i) => (
-                              <li key={i} className="text-sm font-medium text-brutalist-dark flex items-start gap-2">
-                                <CheckCircle size={18} className="text-brutalist-green shrink-0 mt-0.5" strokeWidth={3} />
-                                <span>{h}</span>
-                              </li>
-                            ))}
-                          </ul>
+                      {/* Render legacy secondary fields if present for older processed docs */}
+                      {(statusData.nlp_summary.highlights?.length > 0 || statusData.nlp_summary.risks?.length > 0) && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-6 border-t-4 border-brutalist-dark pt-6">
+                          {statusData.nlp_summary.highlights?.length > 0 && (
+                            <div>
+                              <h4 className="text-sm font-black text-brutalist-green mb-3 uppercase tracking-widest">Key Highlights</h4>
+                              <ul className="space-y-2">
+                                {statusData.nlp_summary.highlights.map((h, i) => (
+                                  <li key={i} className="text-sm font-medium text-brutalist-dark flex items-start gap-2">
+                                    <CheckCircle size={18} className="text-brutalist-green shrink-0 mt-0.5" strokeWidth={3} />
+                                    <span>{h}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {statusData.nlp_summary.risks?.length > 0 && (
+                            <div>
+                              <h4 className="text-sm font-black text-brutalist-orange mb-3 uppercase tracking-widest">Potential Risks</h4>
+                              <ul className="space-y-2">
+                                {statusData.nlp_summary.risks.map((r, i) => (
+                                  <li key={i} className="text-sm font-medium text-brutalist-dark flex items-start gap-2">
+                                    <AlertTriangle size={18} className="text-brutalist-orange shrink-0 mt-0.5" strokeWidth={3} />
+                                    <span>{r}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </div>
-                        <div className="border-t-4 border-brutalist-dark pt-4">
-                          <h4 className="text-sm font-black text-brutalist-orange mb-3 uppercase tracking-widest">Potential Risks</h4>
-                          <ul className="space-y-2">
-                            {(statusData.nlp_summary.risks || []).map((r, i) => (
-                              <li key={i} className="text-sm font-medium text-brutalist-dark flex items-start gap-2">
-                                <AlertTriangle size={18} className="text-brutalist-orange shrink-0 mt-0.5" strokeWidth={3} />
-                                <span>{r}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>

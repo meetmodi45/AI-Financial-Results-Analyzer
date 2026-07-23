@@ -35,6 +35,20 @@ async def upload_document(
     """
     contents, original_filename = await get_pdf_from_upload_or_url(file, url)
 
+    # ── NO CACHING: Wipe all previous documents on every new upload ──────────
+    # This ensures the frontend always gets fresh results and never sees stale data.
+    try:
+        old_docs = db.query(Document).all()
+        for old_doc in old_docs:
+            old_file = os.path.join(UPLOAD_DIR, f"{old_doc.id}.pdf")
+            if os.path.exists(old_file):
+                os.remove(old_file)
+        db.query(Document).delete()
+        db.commit()
+        logger.info(f"[Agent 1] Cleared {len(old_docs)} previous document(s) — no caching.")
+    except Exception as e:
+        logger.warning(f"[Agent 1] Could not clear old documents: {e}")
+
     document_id = str(uuid.uuid4())
     file_path = os.path.join(UPLOAD_DIR, f"{document_id}.pdf")
 

@@ -13,7 +13,7 @@ def process_ocr(document_id: str, file_path: str):
     try:
         doc_record.processing_status = ProcessingStatus.OCR_EXTRACTION
         db.commit()
-        requires_ocr = doc_record.metadata_json.get('requires_ocr', False)
+        requires_ocr = (doc_record.metadata_json or {}).get('requires_ocr', False)
         doc = fitz.open(file_path)
         extracted_text = {}
         for page_num in range(len(doc)):

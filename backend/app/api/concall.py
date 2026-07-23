@@ -44,25 +44,7 @@ async def upload_and_process_concall(
     # Calculate SHA-256 hash of the file contents
     file_hash = hashlib.sha256(file_bytes).hexdigest()
 
-    # --- Deduplication check ---
-    # We now strictly deduplicate by File Hash ONLY.
-    # If a user uploads the exact same PDF but types "Transrail Limited" instead
-    # of "Transrail", we still instantly hit the cache because the binary file
-    # is mathematically identical. This prevents cache misses due to typos.
-    existing = db.query(ConcallDocument).filter(
-        ConcallDocument.file_hash == file_hash,
-        ConcallDocument.processed_status == "COMPLETED",
-        ConcallDocument.summary_data.isnot(None)
-    ).first()
 
-    if existing:
-        logger.info(f"Dedup hit: returning existing document {existing.id} for {company_name} {quarter} {fiscal_year} (hash: {file_hash[:8]}...)")
-        return {
-            "document_id": existing.id,
-            "company_name": existing.company_name,
-            "status": "COMPLETED",
-            "message": f"Already processed — returning existing result for {company_name} {quarter} {fiscal_year}"
-        }
 
     document_id = str(uuid.uuid4())
 
