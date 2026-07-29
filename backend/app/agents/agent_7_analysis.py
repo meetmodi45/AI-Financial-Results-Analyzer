@@ -37,15 +37,18 @@ def process_financial_analysis(document_id: str):
         unit = raw_fd.get('reported_currency_unit') or ""
         unit = unit.lower()
         
-        # Fallback: If unit not extracted natively, scan the raw text
-        if not unit:
+        # Fallback: If unit not extracted natively, scan ONLY the top lines of P&L page (avoid scanning footnotes)
+        if not unit or unit == "not specified":
             extracted_text_dict = doc_record.extracted_text or {}
-            full_text = " ".join(extracted_text_dict.values()).lower()
-            if 'in lakh' in full_text or 'in lac' in full_text:
+            source_indices = raw_fd.get('source_page_indices') or [0, 1, 5]
+            header_text = ""
+            for p_idx in source_indices[:2]:
+                header_text += " " + extracted_text_dict.get(str(p_idx), "")[:1000].lower()
+            if 'in lakh' in header_text or 'in lac' in header_text:
                 unit = 'lakh'
-            elif 'in million' in full_text:
+            elif 'in million' in header_text:
                 unit = 'million'
-            elif 'in thousand' in full_text:
+            elif 'in thousand' in header_text:
                 unit = 'thousand'
 
         scale_factor = 1.0
@@ -110,7 +113,27 @@ def process_financial_analysis(document_id: str):
         eps_prev = fd.get('basic_eps_q_prev') or fd.get('eps_q_prev')
         eps_yoy  = fd.get('basic_eps_q_year_ago') or fd.get('eps_q_year_ago')
 
+        # Reg 52(4) Disclosures Fallbacks
+        rep_cur_ratio = raw_fd.get('reported_current_ratio')
+        rep_net_margin = raw_fd.get('reported_net_margin')
+        rep_op_margin = raw_fd.get('reported_operating_margin')
+        rep_debt_eq = raw_fd.get('reported_debt_equity')
+
+        net_margin_calc = safe_margin(pat_q_curr, ti_q_curr)
+        if net_margin_calc is None and rep_net_margin is not None:
+            net_margin_calc = float(rep_net_margin)
+
+        ebitda_margin_calc = safe_margin(ebitda_q, ti_q_curr)
+        if ebitda_margin_calc is None and rep_op_margin is not None:
+            ebitda_margin_calc = float(rep_op_margin)
+
         results = {
+            # Period Labels for Dynamic Visualization
+            'period_q_current_label':  raw_fd.get('period_q_current_label') or 'Q Current',
+            'period_q_prev_label':     raw_fd.get('period_q_prev_label') or 'Q Prev',
+            'period_q_year_ago_label': raw_fd.get('period_q_year_ago_label') or 'Q Year-Ago',
+            'period_fy_prev_label':    raw_fd.get('period_fy_prev_label') or 'FY Prev',
+
             # Growth %
             'qoq_growth':      safe_growth(ti_q_curr, ti_q_prev),
             'yoy_growth':      safe_growth(ti_q_curr, ti_q_yoy),
@@ -120,9 +143,9 @@ def process_financial_analysis(document_id: str):
             'eps_yoy':         safe_growth(eps_curr, eps_yoy),
 
             # Margins
-            'net_margin':      safe_margin(pat_q_curr, ti_q_curr),    # PAT / Total Income (Q)
+            'net_margin':      net_margin_calc,                       # PAT / Total Income (Q)
             'pbt_margin':      safe_margin(pbt_q_curr, ti_q_curr),    # PBT / Total Income (Q)
-            'ebitda_margin':   safe_margin(ebitda_q, ti_q_curr),      # EBITDA proxy / Total Income (Q)
+            'ebitda_margin':   ebitda_margin_calc,                    # EBITDA proxy / Total Income (Q)
             'net_margin_fy':   safe_margin(pat_fy_curr, ti_fy_curr),  # Annual net margin
             'pbt_margin_fy':   safe_margin(pbt_fy_curr, ti_fy_curr),  # Annual PBT margin
             'ebitda_margin_fy': safe_margin(ebitda_fy, ti_fy_curr),   # Annual EBITDA margin
@@ -142,6 +165,8 @@ def process_financial_analysis(document_id: str):
         nc_borrow = fd.get('non_current_borrowings') or 0
         c_borrow  = fd.get('current_borrowings') or 0
         total_borrowings = nc_borrow + c_borrow
+        if total_borrowings == 0 and raw_fd.get('reported_total_debt') is not None:
+            total_borrowings = float(raw_fd.get('reported_total_debt'))
 
         cash_eq   = fd.get('cash_equivalents') or 0
         bank_bal  = fd.get('bank_balances') or 0
@@ -154,6 +179,8 @@ def process_financial_analysis(document_id: str):
         current_ratio  = None
         if tc_assets is not None and tc_liabilities is not None and tc_liabilities != 0:
             current_ratio = round(tc_assets / tc_liabilities, 2)
+        elif rep_cur_ratio is not None:
+            current_ratio = float(rep_cur_ratio)
 
         # Previous Year
         nc_borrow_prev = fd.get('non_current_borrowings_prev') or 0
@@ -172,10 +199,10 @@ def process_financial_analysis(document_id: str):
         if tc_assets_prev is not None and tc_liabilities_prev is not None and tc_liabilities_prev != 0:
             current_ratio_prev = round(tc_assets_prev / tc_liabilities_prev, 2)
 
-        if fd.get('non_current_borrowings') is not None or fd.get('current_borrowings') is not None:
+        if total_borrowings > 0:
             results['total_borrowings_cr'] = total_borrowings
             results['net_debt_cr'] = net_debt
-            if fd.get('non_current_borrowings_prev') is not None or fd.get('current_borrowings_prev') is not None:
+            if total_borrowings_prev > 0:
                 results['total_borrowings_cr_prev'] = total_borrowings_prev
                 results['net_debt_cr_prev'] = net_debt_prev
 

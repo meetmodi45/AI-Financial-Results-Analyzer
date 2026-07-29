@@ -8,6 +8,22 @@ class FinancialRawSchema(BaseModel):
         default="Not specified",
         description="The exact scaling metric written on the page text header (e.g., 'Lakhs', 'Millions', 'Crores'). Extract verbatim."
     )
+    period_q_current_label: str = Field(
+        default="Current Quarter",
+        description="Label/date of current quarter from column header (e.g., 'Q1 Jun-26', 'Quarter ended 30/06/2026')."
+    )
+    period_q_prev_label: str = Field(
+        default="Preceding Quarter",
+        description="Label/date of preceding quarter from column header (e.g., 'Q4 Mar-26', 'Quarter ended 31/03/2026')."
+    )
+    period_q_year_ago_label: str = Field(
+        default="Year-Ago Quarter",
+        description="Label/date of year-ago quarter from column header (e.g., 'Q1 Jun-25', 'Quarter ended 30/06/2025')."
+    )
+    period_fy_prev_label: str = Field(
+        default="Previous Financial Year",
+        description="Label/date of previous financial year from column header (e.g., 'FY Mar-26', 'Year ended 31/03/2026')."
+    )
     source_page_indices: list[int] = Field(
         default_factory=list, 
         description="List of page indices where the data was found."
@@ -19,8 +35,16 @@ class FinancialRawSchema(BaseModel):
 
     @field_validator("*", mode="before")
     def clean_numeric(cls, v, info):
-        if info.field_name in ("reported_currency_unit", "extraction_confidence"):
-            return str(v) if isinstance(v, (int, float)) else v
+        str_metadata_fields = (
+            "reported_currency_unit", 
+            "extraction_confidence",
+            "period_q_current_label",
+            "period_q_prev_label",
+            "period_q_year_ago_label",
+            "period_fy_prev_label"
+        )
+        if info.field_name in str_metadata_fields:
+            return str(v) if isinstance(v, (int, float)) else (v or "")
         if info.field_name == "source_page_indices":
             if isinstance(v, str):
                 try:
@@ -95,47 +119,58 @@ class FinancialRawSchema(BaseModel):
     pat_fy_prev: str | float | None = Field(default=None, description="Profit After Tax (PAT) / Net Profit for full previous FY.")
 
     # ---------------------------------------------------------
+    # Capital & Reg 52(4) Pre-Computed Disclosures Group
+    # ---------------------------------------------------------
+    paid_up_equity_capital: str | float | None = Field(default=None, description="Paid-up equity share capital amount.")
+    reported_current_ratio: str | float | None = Field(default=None, description="Pre-computed Current Ratio from SEBI disclosures.")
+    reported_debt_equity: str | float | None = Field(default=None, description="Pre-computed Debt Equity ratio from SEBI disclosures.")
+    reported_net_worth: str | float | None = Field(default=None, description="Pre-computed Net worth from SEBI disclosures.")
+    reported_total_debt: str | float | None = Field(default=None, description="Pre-computed Total / Outstanding debt from SEBI disclosures.")
+    reported_operating_margin: str | float | None = Field(default=None, description="Pre-computed Operating margin (%) from SEBI disclosures.")
+    reported_net_margin: str | float | None = Field(default=None, description="Pre-computed Net profit margin (%) from SEBI disclosures.")
+
+    # ---------------------------------------------------------
     # Balance Sheet Group
     # ---------------------------------------------------------
     # Current Period (Index 0)
-    non_current_borrowings: str | float | None = None
-    current_borrowings: str | float | None = None
-    cash_equivalents: str | float | None = None
-    bank_balances: str | float | None = None
-    cwip: str | float | None = None
-    trade_receivables: str | float | None = None
-    inventories: str | float | None = None
-    total_current_assets: str | float | None = None
-    total_current_liabilities: str | float | None = None
+    non_current_borrowings: str | float | None = Field(default=None, description="Non-current Borrowings / Long-term Borrowings from the Balance Sheet (under non-current liabilities).")
+    current_borrowings: str | float | None = Field(default=None, description="Current Borrowings / Short-term Borrowings from the Balance Sheet (under current liabilities).")
+    cash_equivalents: str | float | None = Field(default=None, description="Cash and cash equivalents from the Balance Sheet.")
+    bank_balances: str | float | None = Field(default=None, description="Other bank balances (other than cash and cash equivalents) from the Balance Sheet.")
+    cwip: str | float | None = Field(default=None, description="Capital work-in-progress (CWIP) from the Balance Sheet.")
+    trade_receivables: str | float | None = Field(default=None, description="Trade receivables from the Balance Sheet (under current assets).")
+    inventories: str | float | None = Field(default=None, description="Inventories / Stock-in-trade from the Balance Sheet (under current assets).")
+    total_current_assets: str | float | None = Field(default=None, description="Total Current Assets from the Balance Sheet.")
+    total_current_liabilities: str | float | None = Field(default=None, description="Total Current Liabilities from the Balance Sheet.")
 
     # Previous Period (Index 1)
-    non_current_borrowings_prev: str | float | None = None
-    current_borrowings_prev: str | float | None = None
-    cash_equivalents_prev: str | float | None = None
-    bank_balances_prev: str | float | None = None
-    cwip_prev: str | float | None = None
-    trade_receivables_prev: str | float | None = None
-    inventories_prev: str | float | None = None
-    total_current_assets_prev: str | float | None = None
-    total_current_liabilities_prev: str | float | None = None
+    non_current_borrowings_prev: str | float | None = Field(default=None, description="Historical comparative Non-current Borrowings / Long-term Borrowings from the Balance Sheet.")
+    current_borrowings_prev: str | float | None = Field(default=None, description="Historical comparative Current Borrowings / Short-term Borrowings from the Balance Sheet.")
+    cash_equivalents_prev: str | float | None = Field(default=None, description="Historical comparative Cash and cash equivalents from the Balance Sheet.")
+    bank_balances_prev: str | float | None = Field(default=None, description="Historical comparative other bank balances from the Balance Sheet.")
+    cwip_prev: str | float | None = Field(default=None, description="Historical comparative Capital work-in-progress (CWIP) from the Balance Sheet.")
+    trade_receivables_prev: str | float | None = Field(default=None, description="Historical comparative Trade receivables from the Balance Sheet.")
+    inventories_prev: str | float | None = Field(default=None, description="Historical comparative Inventories from the Balance Sheet.")
+    total_current_assets_prev: str | float | None = Field(default=None, description="Historical comparative Total Current Assets from the Balance Sheet.")
+    total_current_liabilities_prev: str | float | None = Field(default=None, description="Historical comparative Total Current Liabilities from the Balance Sheet.")
 
     # ---------------------------------------------------------
     # Cash Flow Group
     # ---------------------------------------------------------
     # Current Period (Index 0)
-    operating_cash_flow: str | float | None = None
-    operating_profit_pre_wc: str | float | None = None
-    investing_cash_flow: str | float | None = None
-    capex: str | float | None = None
-    financing_cash_flow: str | float | None = None
-    proceeds_borrowings: str | float | None = None
-    repayment_borrowings: str | float | None = None
+    operating_cash_flow: str | float | None = Field(default=None, description="Net Cash Flow from Operating Activities from the Cash Flow Statement.")
+    operating_profit_pre_wc: str | float | None = Field(default=None, description="Operating Profit before Working Capital Changes from the Cash Flow Statement.")
+    investing_cash_flow: str | float | None = Field(default=None, description="Net Cash Flow from/used in Investing Activities from the Cash Flow Statement.")
+    capex: str | float | None = Field(default=None, description="Capital Expenditure / Purchase of property, plant, and equipment (expressed as a negative float) from Cash Flow Statement.")
+    financing_cash_flow: str | float | None = Field(default=None, description="Net Cash Flow from/used in Financing Activities from the Cash Flow Statement.")
+    proceeds_borrowings: str | float | None = Field(default=None, description="Proceeds from issue of share capital or non-current/current borrowings from the Cash Flow Statement.")
+    repayment_borrowings: str | float | None = Field(default=None, description="Repayments of non-current/current borrowings or lease payments from the Cash Flow Statement.")
 
     # Previous Period (Index 1)
-    operating_cash_flow_prev: str | float | None = None
-    operating_profit_pre_wc_prev: str | float | None = None
-    investing_cash_flow_prev: str | float | None = None
-    capex_prev: str | float | None = None
-    financing_cash_flow_prev: str | float | None = None
-    proceeds_borrowings_prev: str | float | None = None
-    repayment_borrowings_prev: str | float | None = None
+    operating_cash_flow_prev: str | float | None = Field(default=None, description="Historical comparative Net Cash Flow from Operating Activities.")
+    operating_profit_pre_wc_prev: str | float | None = Field(default=None, description="Historical comparative Operating Profit before Working Capital Changes.")
+    investing_cash_flow_prev: str | float | None = Field(default=None, description="Historical comparative Net Cash Flow from/used in Investing Activities.")
+    capex_prev: str | float | None = Field(default=None, description="Historical comparative Capital Expenditure.")
+    financing_cash_flow_prev: str | float | None = Field(default=None, description="Historical comparative Net Cash Flow from/used in Financing Activities.")
+    proceeds_borrowings_prev: str | float | None = Field(default=None, description="Historical comparative Proceeds from borrowings/shares.")
+    repayment_borrowings_prev: str | float | None = Field(default=None, description="Historical comparative Repayments of borrowings/leases.")

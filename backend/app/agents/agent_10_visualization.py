@@ -24,28 +24,33 @@ def process_visualization(document_id: str):
             except (ValueError, TypeError):
                 return None
 
+        lbl_yoy = res.get('period_q_year_ago_label') or fd.get('period_q_year_ago_label') or 'Q Year-Ago'
+        lbl_prev = res.get('period_q_prev_label') or fd.get('period_q_prev_label') or 'Q Preceding'
+        lbl_curr = res.get('period_q_current_label') or fd.get('period_q_current_label') or 'Q Current'
+        lbl_fy_prev = res.get('period_fy_prev_label') or fd.get('period_fy_prev_label') or 'FY Previous'
+
         # ── Total Income Trend: Q year-ago → Q prev → Q current ─────────────
         tinc_series = [
-            ('Q Mar-25', fd.get('total_income_q_year_ago') or fd.get('revenue_q_year_ago')),
-            ('Q Dec-25', fd.get('total_income_q_prev') or fd.get('revenue_q_prev')),
-            ('Q Mar-26', fd.get('total_income_q_current') or fd.get('revenue_q_current')),
+            (lbl_yoy, fd.get('total_income_q_year_ago') or fd.get('revenue_q_year_ago')),
+            (lbl_prev, fd.get('total_income_q_prev') or fd.get('revenue_q_prev')),
+            (lbl_curr, fd.get('total_income_q_current') or fd.get('revenue_q_current')),
         ]
         tinc_labels = [l for l, v in tinc_series if safe_round(v) is not None]
         tinc_data   = [safe_round(v) for l, v in tinc_series if safe_round(v) is not None]
 
         # ── PAT Trend: same quarterly progression ────────────────────────────
         pat_series = [
-            ('Q Mar-25', fd.get('pat_q_year_ago')),
-            ('Q Dec-25', fd.get('pat_q_prev')),
-            ('Q Mar-26', fd.get('pat_q_current')),
+            (lbl_yoy, fd.get('pat_q_year_ago')),
+            (lbl_prev, fd.get('pat_q_prev')),
+            (lbl_curr, fd.get('pat_q_current')),
         ]
         pat_labels = [l for l, v in pat_series if safe_round(v) is not None]
         pat_data   = [safe_round(v) for l, v in pat_series if safe_round(v) is not None]
 
         # ── Full Year Comparison: FY prev vs FY current ──────────────────────
         fy_series = [
-            ('FY Mar-25', fd.get('total_income_fy_prev') or fd.get('revenue_fy_prev')),
-            ('FY Mar-26', fd.get('total_income_fy_current') or fd.get('revenue_fy_current')),
+            (lbl_fy_prev, fd.get('total_income_fy_prev') or fd.get('revenue_fy_prev')),
+            ('FY Current', fd.get('total_income_fy_current') or fd.get('revenue_fy_current')),
         ]
         fy_labels = [l for l, v in fy_series if safe_round(v) is not None]
         fy_data   = [safe_round(v) for l, v in fy_series if safe_round(v) is not None]
@@ -64,18 +69,18 @@ def process_visualization(document_id: str):
             return None
 
         margin_series = [
-            {'name': 'Q Mar-25', 'OPM': None},
-            {'name': 'Q Dec-25', 'OPM': opm('profit_before_exceptional_q_prev', 'profit_before_tax_q_prev', 'total_income_q_prev')},
-            {'name': 'Q Mar-26', 'OPM': opm('profit_before_exceptional_q_current', 'profit_before_tax_q_current', 'total_income_q_current')},
+            {'name': lbl_yoy, 'OPM': None},
+            {'name': lbl_prev, 'OPM': opm('profit_before_exceptional_q_prev', 'profit_before_tax_q_prev', 'total_income_q_prev')},
+            {'name': lbl_curr, 'OPM': opm('profit_before_exceptional_q_current', 'profit_before_tax_q_current', 'total_income_q_current')},
         ]
         # Only keep points where at least one value is not None
         margin_series = [p for p in margin_series if any(v is not None for k, v in p.items() if k != 'name')]
 
         # ── EPS Trend ────────────────────────────────────────────────────────
         eps_series = [
-            ('Q Mar-25', fd.get('basic_eps_q_year_ago')),
-            ('Q Dec-25', fd.get('basic_eps_q_prev')),
-            ('Q Mar-26', fd.get('basic_eps_q')),
+            (lbl_yoy, fd.get('basic_eps_q_year_ago')),
+            (lbl_prev, fd.get('basic_eps_q_prev')),
+            (lbl_curr, fd.get('basic_eps_q')),
         ]
         eps_labels = [l for l, v in eps_series if safe_round(v) is not None]
         eps_data   = [safe_round(v) for l, v in eps_series if safe_round(v) is not None]

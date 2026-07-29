@@ -86,10 +86,24 @@ def reconcile_accounting_identities(data: dict) -> dict:
     
     if pbt and tax and tax > 0:
         pat_calc = round(pbt - tax, 2)
-        # If PAT is missing, zero, or deviates significantly from PBT - Tax (e.g. LLM grabbed TCI instead of PAT)
-        if not pat or abs(pat - pat_calc) > abs(pbt) * 0.15:
+        # Tight tolerance: 2% of PBT or 2.0 units tolerance to catch TCI / PBT misassignments
+        max_tol = max(2.0, abs(pbt) * 0.02)
+        if not pat or abs(pat - pat_calc) > max_tol:
             logger.warning(f"[Agent 6 Accounting Reconciler] Corrected PAT anomaly ({pat}) using deterministic PBT - Tax identity: {pat_calc}")
             cleaned['pat_q_current'] = pat_calc
+
+    # Rule 4: EPS Sanity Check against PAT and Equity Capital
+    eps = cleaned.get('basic_eps_q')
+    cap = cleaned.get('paid_up_equity_capital')
+    pat_final = cleaned.get('pat_q_current')
+    if eps and cap and cap > 0 and pat_final and pat_final > 0:
+        # Expected ratio of PAT to Capital (assuming ₹1 face value default)
+        expected_ratio = pat_final / cap
+        if expected_ratio > 0:
+            # Check if reported EPS is off by 10x or 100x scale
+            if 0.1 <= expected_ratio / (eps * 100) <= 10.0:
+                logger.warning(f"[Agent 6 Accounting Reconciler] Corrected 100x scale anomaly on basic_eps_q ({eps}) -> {round(eps * 100, 2)}")
+                cleaned['basic_eps_q'] = round(eps * 100, 2)
 
     cleaned['data_integrity_verified'] = True
     return cleaned
