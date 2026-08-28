@@ -6,9 +6,9 @@ from app.core.db import SessionLocal
 from app.models.document import Document, ProcessingStatus
 from app.schemas.financial import FinancialRawSchema
 
-from app.core.config import settings
-from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -101,10 +101,10 @@ def find_best_page(extracted_text: dict, signals: list, prefer_consolidated: boo
         
         # Boost Consolidated P&L pages over Standalone
         if prefer_consolidated:
-            if 'consolidated' in t:
-                score += 8
-            elif 'standalone' in t:
-                score -= 5
+            if 'consolidated financial result' in t or 'consolidated unaudited' in t or 'consolidated audited' in t:
+                score += 15
+            elif 'standalone financial result' in t or 'standalone unaudited' in t or 'standalone audited' in t:
+                score -= 10
 
         if 'independent auditor' in t or 'we have audited' in t or 'in our opinion' in t:
             score -= 20
@@ -121,6 +121,14 @@ def find_best_page(extracted_text: dict, signals: list, prefer_consolidated: boo
 
 def sanitize_json_string(raw_json: str) -> str:
     """Sanitizes raw JSON string produced by LLM before parsing to fix common JSON formatting issues like commas in numbers."""
+    cleaned = raw_json.strip()
+    
+    # Strip markdown formatting if present (e.g. ```json ... ```)
+    if "{" in cleaned and "}" in cleaned:
+        start_idx = cleaned.find("{")
+        end_idx = cleaned.rfind("}")
+        cleaned = cleaned[start_idx:end_idx+1]
+        
     def fix_unquoted_commas(match):
         prefix = match.group(1)
         num_str = match.group(2).replace(',', '')
@@ -134,7 +142,14 @@ def sanitize_json_string(raw_json: str) -> str:
         num_str = match.group(2).replace(',', '')
         return f"{prefix}{num_str}"
         
-    cleaned = re.sub(r'(:\s*)"(-?\d{1,3}(?:,\d{3})+(?:\.\d+)?)"', fix_quoted_commas, cleaned)
+    cleaned = re.sub(r'(:\s*)\"(-?\d{1,3}(?:,\d{3})+(?:\.\d+)?)\"', fix_quoted_commas, cleaned)
+    
+    if cleaned and not cleaned.strip().endswith('}'):
+        cleaned = cleaned.strip() + '}'
+        
+    if not cleaned or cleaned.isspace():
+        cleaned = "{}"
+        
     return cleaned
 
 def process_tables(document_id: str):
@@ -153,53 +168,40 @@ def process_tables(document_id: str):
         cf_page = find_best_page(extracted_text, _CF_SIGNALS, prefer_consolidated=True)
         reg_page = find_best_page(extracted_text, _REG52_SIGNALS, prefer_consolidated=True)
 
-        # We will do three distinct passes to avoid token caps cutting off BS/CF/Disclosures
-        passes = []
-        
-        # Pass 1: P&L Statement (always run)
+        # Instead of three passes which trigger Groq 8000 TPM limits sequentially, we do ONE combined pass.
+        target_set = set()
         if pl_page != -1:
-            pl_pages = {pl_page, pl_page + 1}
-            if pl_page > 0: pl_pages.add(pl_page - 1)
-            passes.append(("PL", pl_pages))
-            
-        # Pass 2: Balance Sheet & SEBI Disclosures
-        bs_pages = set()
+            target_set.update({pl_page, pl_page + 1})
+            if pl_page > 0: target_set.add(pl_page - 1)
         if bs_page != -1:
-            bs_pages.update({bs_page, bs_page + 1})
-            if bs_page > 0: bs_pages.add(bs_page - 1)
-        if reg_page != -1:
-            bs_pages.update({reg_page, reg_page + 1})
-            if reg_page > 0: bs_pages.add(reg_page - 1)
-        if bs_pages:
-            passes.append(("BS_REG", bs_pages))
-            
-        # Pass 3: Cash Flow Statement
+            target_set.update({bs_page, bs_page + 1})
+            if bs_page > 0: target_set.add(bs_page - 1)
         if cf_page != -1:
-            cf_pages = {cf_page, cf_page + 1}
-            if cf_page > 0: cf_pages.add(cf_page - 1)
-            passes.append(("CF", cf_pages))
+            target_set.update({cf_page, cf_page + 1})
+            if cf_page > 0: target_set.add(cf_page - 1)
+        if reg_page != -1:
+            target_set.update({reg_page, reg_page + 1})
+            if reg_page > 0: target_set.add(reg_page - 1)
+            
+        passes = [("ALL", target_set)]
 
         # Invoke LLM Engine
-        logger.info("[Agent5] Invoking Groq JSON mode for multi-pass table extraction...")
-        llm = ChatGroq(
-            model=settings.GROQ_MODEL, 
+        logger.info("[Agent5] Invoking Gemini for single-pass table extraction...")
+        llm = ChatGoogleGenerativeAI(
+            model=settings.GEMINI_MODEL,
             temperature=0.0,
-            max_tokens=4000,
-            model_kwargs={"response_format": {"type": "json_object"}}
+            max_output_tokens=4000,
+            google_api_key=settings.GEMINI_API_KEY,
+            model_kwargs={"response_mime_type": "application/json"}
         )
 
         merged_data = {}
 
-        # Loop through each pass to extract specific blocks sequentially
         for pass_name, target_set in passes:
             logger.info(f"[Agent5] Running extraction pass: {pass_name} on pages {target_set}")
             
-            # Determine which keys are allowed in this pass and compile their descriptions
-            pass_keys = {
-                "PL": _PL_KEYS,
-                "BS_REG": _BS_REG_KEYS,
-                "CF": _CF_KEYS
-            }[pass_name]
+            # Combine all keys for the single pass
+            pass_keys = _PL_KEYS + _BS_REG_KEYS + _CF_KEYS
             
             pass_schema = {}
             for name, field in FinancialRawSchema.model_fields.items():
@@ -208,9 +210,8 @@ def process_tables(document_id: str):
                         pass_schema[name] = "historical comparative value"
                     else:
                         pass_schema[name] = field.description or "financial metric"
-            schema_keys_json = json.dumps(pass_schema, indent=2)
+            schema_keys_json = json.dumps(pass_schema, separators=(',', ':'))
             
-            # Compile text for this targeted slice only
             compiled_text = ""
             # Prepend Header Preview for unit extraction
             for first_p in ['0', '1']:
@@ -222,43 +223,43 @@ def process_tables(document_id: str):
                 if str(p) in extracted_text:
                     compiled_text += f"\n--- PAGE {p} ---\n{extracted_text[str(p)]}\n"
             
-            compiled_text = compiled_text[:6000] # Safe token limit
+            compiled_text = compiled_text[:8000] # Safe token limit for 8000 TPM free tier
             
             if not compiled_text.strip():
                 continue
                 
             system_prompt = (
-                "Your sole mission is to act as a linguistic translator mapping unstructured textual grids into a structured financial JSON object. You must output ONLY raw, valid JSON without any markdown formatting or code blocks.\n"
-                f"You are currently extracting only {pass_name} related metrics. Extract as many metrics as present into a valid JSON object containing keys from this list:\n\n"
+                "You are a precise data extraction API. Map the unstructured financial tables into a structured JSON object using exactly these keys:\n\n"
                 "{schema_keys}\n\n"
-                "STRICT NUMERICAL & EXTRACTION RULES:\n"
-                "1. Output all financial amounts as raw numbers (floats/ints) without thousands separators/commas.\n"
-                "2. If a number is enclosed in brackets or parentheses like (100.50), extract it natively as a negative float (-100.50).\n"
-                "3. DO NOT perform any math scaling or currency normalizations yourself.\n"
-                "4. NEVER output arithmetic expressions or additions (e.g. do NOT write '7237.22 + 19.11' in any field). Write ONLY a single clean float/integer.\n"
-                "5. Identify and populate 'reported_currency_unit' verbatim from the page headers.\n"
-                "6. DYNAMIC PERIOD COLUMN MAPPING RULE (CRITICAL):\n"
-                "   - Read the column headers at top of table (e.g. '30/06/2026', '31/03/2026', '30/06/2025', '31/03/2026').\n"
-                "   - Extract period labels into `period_q_current_label` (e.g., 'Q1 Jun-26'), `period_q_prev_label` (e.g., 'Q4 Mar-26'), `period_q_year_ago_label` (e.g., 'Q1 Jun-25'), `period_fy_prev_label` (e.g., 'FY Mar-26').\n"
-                "   - Column 0 (Current Quarter) -> maps to _q_current fields (e.g. revenue_q_current, pat_q_current, basic_eps_q).\n"
-                "   - Column 1 (Preceding Quarter) -> maps to _q_prev fields.\n"
-                "   - Column 2 (Year-Ago Quarter) -> maps to _q_year_ago fields.\n"
-                "   - Column 3 in Q1/Q2/Q3 filings is 'Previous year ended' -> maps to _fy_prev fields! NEVER map Column 3 into _fy_current unless it is a Q4 annual report.\n"
-                "7. CONSOLIDATED STATEMENT PRIORITY:\n"
-                "   - If both Consolidated and Standalone tables exist, extract ONLY CONSOLIDATED figures.\n"
-                "8. If a metric is missing, absent, or represented as '-' or 'N/A', set it to null."
+                "STRICT RULES:\n"
+                "1. Output all financial amounts as raw numbers (floats/ints).\n"
+                "2. If a number is enclosed in brackets like (100.50), extract as a negative float (-100.50).\n"
+                "3. DYNAMIC PERIOD COLUMN MAPPING RULE:\n"
+                "   - Column 0 (Current Quarter) -> _q_current fields.\n"
+                "   - Column 1 (Preceding Quarter) -> _q_prev fields.\n"
+                "   - Column 2 (Year-Ago Quarter) -> _q_year_ago fields.\n"
+                "4. CONSOLIDATED STATEMENT PRIORITY:\n"
+                "   - If you see both Consolidated and Standalone figures, EXTRACT ONLY CONSOLIDATED FIGURES.\n"
+                "5. Always output a valid JSON object."
             )
-
             prompt = ChatPromptTemplate.from_messages([
                 ("system", system_prompt),
-                ("human", "Extract the financial profile from the following pages and output ONLY a single valid JSON object. Do NOT wrap it in ```json blocks and do NOT include any other text:\n\n{text}")
+                ("human", "Extract the financial profile into JSON. Do NOT wrap it in markdown:\n\n{text}")
             ])
 
             chain = prompt | llm
 
             try:
-                raw_response = chain.invoke({"schema_keys": schema_keys_json, "text": compiled_text})
-                raw_text = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
+                res = chain.invoke({"schema_keys": schema_keys_json, "text": compiled_text})
+            
+                # Handle list content returned by Gemini
+                raw_text = res.content
+                if isinstance(raw_text, list):
+                    raw_text = "".join([part.get("text", "") for part in raw_text if isinstance(part, dict) and "text" in part])
+                elif not isinstance(raw_text, str):
+                    raw_text = str(raw_text)
+                    
+                logger.info(f"[Agent5 DEBUG] Raw LLM Output (first 1000 chars): {raw_text[:1000]}")
                 
                 sanitized_text = sanitize_json_string(raw_text)
                 parsed_json = json.loads(sanitized_text)
@@ -269,8 +270,9 @@ def process_tables(document_id: str):
                         merged_data[k] = v
             except Exception as e:
                 logger.error(f"[Agent5] Pass {pass_name} extraction failed: {e}")
-                if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                    raise ValueError("Groq API Limit Exhausted. Try again after some time")
+                if "429" in str(e) or "413" in str(e) or "RESOURCE_EXHAUSTED" in str(e) or "rate_limit" in str(e):
+                    raise ValueError(f"Groq API Limit Exhausted (Wait 1 minute before analyzing again). Details: {e}")
+                raise e
 
         # Validate final merged JSON structure using Pydantic
         result = FinancialRawSchema.model_validate(merged_data)

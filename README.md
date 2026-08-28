@@ -144,22 +144,21 @@ A second flow lets you upload **earnings-call transcripts** and ask questions vi
 
 The pipeline is orchestrated in `backend/app/core/pipeline.py`. Each stage updates `documents.processing_status` so the UI can show live progress.
 
-| # | Status enum | Module | Responsibility |
+| Agent | Frontend Label | Backend Module | Responsibility |
 |---|-------------|--------|----------------|
-| 1 | `UPLOADED` | `api/routes.py` | Validate PDF (type, encryption), save file, insert DB row, dispatch pipeline |
-| 2 | `CLASSIFYING_PDF` | `agent_2_pdf_type.py` | Count text vs empty pages → `text_pdf` / `scanned_pdf` / `hybrid_pdf`. **Rejects scanned/hybrid** |
-| 3 | `OCR_EXTRACTION` | `agent_3_ocr.py` | PyMuPDF per-page text → `extracted_text` JSON |
-| 4 | `DOCUMENT_CLASSIFICATION` | `agent_4_classifier.py` | TF-IDF + LogReg (`doc_classifier.joblib`) or keyword fallback → `metadata_json.document_category` |
-| 5 | `TABLE_EXTRACTION` | `agent_5_table_extraction.py` | Regex page scoring for P&L / BS / CF → Groq **structured** extract → `financial_data` |
-| 6 | `NORMALIZING_METRICS` | `agent_6_normalization.py` | Flags normalized; **currency scaling is in Agent 7** |
-| 7 | `FINANCIAL_ANALYSIS` | `agent_7_analysis.py` | Scale to **₹ crores**, QoQ/YoY, margins, BS, days, FCF → `analysis_results` |
-| 8 | `NLP_SUMMARIZATION` | `agent_8_llm_summary.py` | Groq bullets from **calculated metrics only** → `nlp_summary` |
-| 9 | `VERDICT_PREDICTION` | `agent_9_verdict.py` | RandomForest on growth/margin features → `verdict` |
-| 10 | `VISUALIZATION_PREP` → `COMPLETED` | `agent_10_visualization.py` | Recharts-ready `metadata_json.charts_data` |
+| 1 | Ingestion | `api/routes.py` | Validate PDF, save file, insert DB row, dispatch pipeline |
+| 2 | PDF Text Extraction | `agent_2_pdf_type.py` | Count text vs empty pages. **Rejects scanned/hybrid** |
+| 3 | OCR Text or Hybrid Check | `agent_3_ocr.py` | PyMuPDF per-page text → `extracted_text` JSON |
+| 4 | Page Identification (Regex Scoring) | `agent_4_classifier.py` | TF-IDF + LogReg or keyword fallback → `document_category` |
+| 5 | Structured JSON Generation (LLM) | `agent_5_table_extraction.py` | Page scoring for P&L / BS / CF → Gemini structured extract |
+| 6 | Normalization and Error Handling | `agent_6_normalization.py` | Flags normalized; **currency scaling is in Agent 7** |
+| 7 | Financial Metrics Calculation | `agent_7_analysis.py` | Scale to **₹ crores**, QoQ/YoY, margins, BS, FCF |
+| 8 | AI Summary Generation | `agent_8_llm_summary.py` | Gemini bullets from calculated metrics only → `nlp_summary` |
+| 9 | Frontend Visualization | `agent_10_visualization.py` | ML verdict & Recharts-ready `charts_data` |
 
 ### Agent 5 — Page selection (non-LLM)
 
-Before calling Groq, the system scores every page with weighted regex signals (revenue, PAT, balance sheet, cash flow, etc.) and penalizes auditor/notes pages. Target pages plus neighbors are compiled into one context block — reducing tokens and noise.
+Before calling Gemini, the system scores every page with weighted regex signals (revenue, PAT, balance sheet, cash flow, etc.) and penalizes auditor/notes pages. Target pages plus neighbors are compiled into one context block — reducing tokens and noise.
 
 ### Agent 7 — Metrics computed in code
 

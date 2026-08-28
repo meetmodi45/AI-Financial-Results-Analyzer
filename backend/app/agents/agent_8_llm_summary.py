@@ -4,7 +4,7 @@ import json
 from app.core.db import SessionLocal
 from app.models.document import Document, ProcessingStatus
 from app.core.config import settings
-from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
@@ -49,10 +49,12 @@ def process_llm_summary(document_id: str):
         )
         
         logger.info("[Agent 8] Invoking Groq JSON mode for LLM Summarization...")
-        llm = ChatGroq(
-            model=settings.GROQ_MODEL, 
-            temperature=0.2,
-            model_kwargs={"response_format": {"type": "json_object"}}
+        llm = ChatGoogleGenerativeAI(
+            model=settings.GEMINI_MODEL,
+            temperature=0.0,
+            max_output_tokens=1000,
+            google_api_key=settings.GEMINI_API_KEY,
+            model_kwargs={"response_mime_type": "application/json"}
         )
         
         system_prompt = (

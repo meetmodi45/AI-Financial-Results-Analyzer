@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     PINECONE_INDEX_NAME: str | None = os.getenv("PINECONE_INDEX_NAME", "financial-reports-index")
     GEMINI_API_KEY: str | None = os.getenv("GEMINI_API_KEY")
     GOOGLE_API_KEY: str | None = os.getenv("GOOGLE_API_KEY")
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 
     class Config:
         extra = "ignore"
