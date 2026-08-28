@@ -15,12 +15,40 @@ def process_pdf_type(document_id: str, file_path: str):
         db.commit()
         doc = fitz.open(file_path)
         total_pages = len(doc)
-        text_pages, scanned_pages = 0, 0
+        text_pages = 0
+        scanned_pages = 0
+        blank_pages = 0
+        
         for page_num in range(total_pages):
-            if len(doc[page_num].get_text().strip()) > 50: text_pages += 1
-            else: scanned_pages += 1
+            page = doc[page_num]
+            text_len = len(page.get_text().strip())
+            
+            if text_len > 50:
+                text_pages += 1
+            else:
+                # Check for images to differentiate scanned pages from blank/chart pages
+                images = page.get_image_info()
+                if len(images) > 0:
+                    scanned_pages += 1
+                else:
+                    blank_pages += 1
+                    
         doc.close()
-        pdf_type = 'scanned_pdf' if scanned_pages == total_pages else 'text_pdf' if text_pages == total_pages else 'hybrid_pdf'
+        
+        valid_pages = total_pages - blank_pages
+        if valid_pages == 0:
+            # If the entire document is blank, mark as text so it fails gracefully downstream
+            pdf_type = 'text_pdf'
+        else:
+            text_ratio = text_pages / valid_pages
+            scanned_ratio = scanned_pages / valid_pages
+            
+            if text_ratio >= 0.80:
+                pdf_type = 'text_pdf'
+            elif scanned_ratio >= 0.80:
+                pdf_type = 'scanned_pdf'
+            else:
+                pdf_type = 'hybrid_pdf'
         current_metadata = dict(doc_record.metadata_json)
         current_metadata.update({'pdf_type': pdf_type, 'text_pages': text_pages, 'scanned_pages': scanned_pages, 'requires_ocr': pdf_type in ['scanned_pdf', 'hybrid_pdf']})
         doc_record.metadata_json = current_metadata

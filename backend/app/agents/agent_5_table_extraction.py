@@ -184,6 +184,7 @@ def process_tables(document_id: str):
         llm = ChatGroq(
             model=settings.GROQ_MODEL, 
             temperature=0.0,
+            max_tokens=4000,
             model_kwargs={"response_format": {"type": "json_object"}}
         )
 
@@ -227,7 +228,7 @@ def process_tables(document_id: str):
                 continue
                 
             system_prompt = (
-                "Your sole mission is to act as a linguistic translator mapping unstructured textual grids into a structured financial JSON object.\n"
+                "Your sole mission is to act as a linguistic translator mapping unstructured textual grids into a structured financial JSON object. You must output ONLY raw, valid JSON without any markdown formatting or code blocks.\n"
                 f"You are currently extracting only {pass_name} related metrics. Extract as many metrics as present into a valid JSON object containing keys from this list:\n\n"
                 "{schema_keys}\n\n"
                 "STRICT NUMERICAL & EXTRACTION RULES:\n"
@@ -250,7 +251,7 @@ def process_tables(document_id: str):
 
             prompt = ChatPromptTemplate.from_messages([
                 ("system", system_prompt),
-                ("human", "Extract the financial profile from the following pages and output a single valid JSON object:\n\n{text}")
+                ("human", "Extract the financial profile from the following pages and output ONLY a single valid JSON object. Do NOT wrap it in ```json blocks and do NOT include any other text:\n\n{text}")
             ])
 
             chain = prompt | llm

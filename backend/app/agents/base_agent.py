@@ -20,7 +20,7 @@ class BaseResearchAgent:
             api_key=settings.GEMINI_API_KEY or settings.GOOGLE_API_KEY
         )
         
-        # Fallback Model: Groq (llama-3.3-70b-versatile)
+        # Fallback Model: Groq (openai/gpt-oss-20b)
         self.fallback_llm = ChatGroq(
             model=settings.GROQ_MODEL, 
             temperature=0.2,

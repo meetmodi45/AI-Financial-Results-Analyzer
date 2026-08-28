@@ -55,33 +55,52 @@ A second flow lets you upload **earnings-call transcripts** and ask questions vi
 <br>
 
 <p align="center">
-  <img src="./docs/Results-Dashboard.png" alt="Results Dashboard" width="800"/>
+  <img src="./docs/results-1.png" alt="Results Overview" width="800"/>
   <br>
-  <em>The main dashboard showing the pipeline progress and high-level extracted metrics.</em>
+  <em>Upload financial results and track multi-agent pipeline extraction.</em>
 </p>
 
 <p align="center">
-  <img src="./docs/PnL.png" alt="Profit and Loss & ML Verdict" width="800"/>
-  <br>
-  <em>Profit & Loss metrics with QoQ/YoY growth trends, interactive visualizations, and the ML-driven Verdict badge.</em>
+  <img src="./docs/results-2.png" alt="P&L Dashboard" width="800"/>
 </p>
 
 <p align="center">
-  <img src="./docs/Verdicts.png" alt="AI LLM Summary" width="800"/>
-  <br>
-  <em>The NLP executive summary, highlights, and risks generated for investors.</em>
+  <img src="./docs/results-3.png" alt="Balance Sheet" width="800"/>
 </p>
 
 <p align="center">
-  <img src="./docs/Balance-sheet.png" alt="Balance Sheet" width="800"/>
-  <br>
-  <em>Balance Sheet breakdown displaying current ratio, net debt, and working capital days.</em>
+  <img src="./docs/results-4.png" alt="Cash Flow" width="800"/>
 </p>
 
 <p align="center">
-  <img src="./docs/cashflows.png" alt="Cash Flows" width="800"/>
+  <img src="./docs/results-5.png" alt="LLM NLP Summary" width="800"/>
+</p>
+
+<p align="center">
+  <img src="./docs/results-6.png" alt="Detailed Extractions" width="800"/>
+</p>
+</details>
+
+<details open>
+<summary><b>📈 Equity Research Dashboard</b></summary>
+<br>
+
+<p align="center">
+  <img src="./docs/research-1.png" alt="Equity Research 1" width="800"/>
   <br>
-  <em>Detailed Cash Flow statement analysis and Free Cash Flow computation.</em>
+  <em>Deep-dive technical, business, and fundamental quantitative research.</em>
+</p>
+
+<p align="center">
+  <img src="./docs/research-2.png" alt="Equity Research 2" width="800"/>
+</p>
+
+<p align="center">
+  <img src="./docs/research-3.png" alt="Equity Research 3" width="800"/>
+</p>
+
+<p align="center">
+  <img src="./docs/research-4.png" alt="Equity Research 4" width="800"/>
 </p>
 </details>
 

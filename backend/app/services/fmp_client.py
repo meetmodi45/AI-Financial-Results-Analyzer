@@ -491,7 +491,7 @@ async def get_technical_data(symbol: str, db: Session):
             if key == "avgTradingVolumeLast10Days":
                 vol_10d = val
             elif key == "avgTradingVolumeLast3months":
-                vol_3m = val
+                vol_3m = round(val / 63.0, 2) if val else val
 
     # Return structure mapped to technical agent expectations
     return {

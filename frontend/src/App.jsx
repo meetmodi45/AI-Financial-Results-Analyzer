@@ -347,15 +347,15 @@ function App() {
             // Find which agent was active when failure occurred
             const AGENT_STAGES = {
               'UPLOADED': 'Agent 1: Ingestion',
-              'CLASSIFYING_PDF': 'Agent 2: PDF Type Classifier',
-              'OCR_EXTRACTION': 'Agent 3: OCR & Text Extraction',
-              'DOCUMENT_CLASSIFICATION': 'Agent 4: Document Classifier',
-              'TABLE_EXTRACTION': 'Agent 5: Table Extraction',
-              'NORMALIZING_METRICS': 'Agent 6: Normalization',
-              'FINANCIAL_ANALYSIS': 'Agent 7: Financial Analysis',
-              'NLP_SUMMARIZATION': 'Agent 8: NLP Summary',
-              'VERDICT_PREDICTION': 'Agent 9: Verdict',
-              'VISUALIZATION_PREP': 'Agent 10: Visualization',
+              'CLASSIFYING_PDF': 'Agent 2: PDF Text Extraction',
+              'OCR_EXTRACTION': 'Agent 3: OCR Text or Hybrid Check',
+              'DOCUMENT_CLASSIFICATION': 'Agent 4: Page Identification (Regex Scoring)',
+              'TABLE_EXTRACTION': 'Agent 5: Structured JSON Generation (LLM)',
+              'NORMALIZING_METRICS': 'Agent 6: Normalization and Error Handling',
+              'FINANCIAL_ANALYSIS': 'Agent 7: Financial Metrics Calculation',
+              'NLP_SUMMARIZATION': 'Agent 8: AI Summary Generation',
+              'VERDICT_PREDICTION': 'Agent 9: Frontend Visualization',
+              'VISUALIZATION_PREP': 'Agent 9: Frontend Visualization',
             };
             // The previous status (before FAILED) is the agent that was running
             const failedAtStage = statusData?.status ? (AGENT_STAGES[statusData.status] || statusData.status) : 'Unknown Stage';
@@ -538,7 +538,7 @@ function App() {
     return (
       <div className={`px-4 py-2 border-2 border-brutalist-dark rounded-none font-bold shadow-[4px_4px_0px_0px_#1A1A1A] flex items-center gap-2 ${colorClass}`}>
         {verdict === "GOOD" ? <TrendingUp size={20} /> : verdict === "BAD" ? <TrendingDown size={20} /> : <Activity size={20} />}
-        {verdict} ({confidence != null ? (confidence * 100).toFixed(0) : 0}% Confidence)
+        {verdict}
       </div>
     );
   };
@@ -681,7 +681,6 @@ function App() {
                       <h2 className="text-xl font-black uppercase tracking-tight text-brutalist-dark">Pipeline Status</h2>
                       <p className="text-sm text-brutalist-dark font-bold font-mono mt-1 uppercase tracking-widest">Multi-agent extraction workflow</p>
                     </div>
-                    {statusData?.verdict && renderVerdictBadge(statusData.verdict)}
                   </div>
 
                   {/* Status Tracker */}
@@ -696,15 +695,15 @@ function App() {
                     <div className="space-y-3">
                       {[
                         { id: 'UPLOADED', label: 'Agent 1: Ingestion' },
-                        { id: 'CLASSIFYING_PDF', label: 'Agent 2: PDF Type Classifier' },
-                        { id: 'OCR_EXTRACTION', label: 'Agent 3: OCR & Extraction' },
-                        { id: 'DOCUMENT_CLASSIFICATION', label: 'Agent 4: Financial Document Verification' },
-                        { id: 'TABLE_EXTRACTION', label: 'Agent 5: Financial Metrics Table Extraction' },
-                        { id: 'NORMALIZING_METRICS', label: 'Agent 6: Value Normalization (INR)' },
-                        { id: 'FINANCIAL_ANALYSIS', label: 'Agent 7: Financial Ratio Analysis' },
-                        { id: 'NLP_SUMMARIZATION', label: 'Agent 8: AI Summarization Generation' },
-                        { id: 'VERDICT_PREDICTION', label: 'Agent 9: Earnings Verdict Prediction' },
-                        { id: 'VISUALIZATION_PREP', label: 'Agent 10: JSON Dashboard Prep' },
+                        { id: 'CLASSIFYING_PDF', label: 'Agent 2: PDF Text Extraction' },
+                        { id: 'OCR_EXTRACTION', label: 'Agent 3: OCR Text or Hybrid Check' },
+                        { id: 'DOCUMENT_CLASSIFICATION', label: 'Agent 4: Page Identification (Regex Scoring)' },
+                        { id: 'TABLE_EXTRACTION', label: 'Agent 5: Structured JSON Generation (LLM)' },
+                        { id: 'NORMALIZING_METRICS', label: 'Agent 6: Normalization and Error Handling' },
+                        { id: 'FINANCIAL_ANALYSIS', label: 'Agent 7: Financial Metrics Calculation' },
+                        { id: 'NLP_SUMMARIZATION', label: 'Agent 8: AI Summary Generation' },
+                        { id: 'VERDICT_PREDICTION', label: 'Agent 9: Frontend Visualization', hidden: true },
+                        { id: 'VISUALIZATION_PREP', label: 'Agent 9: Frontend Visualization' },
                         { id: 'COMPLETED', label: 'Pipeline Execution Complete' }
                       ].map((step, idx, arr) => {
                         const currentStatus = statusData?.status || 'WAITING_FOR_UPLOAD';
@@ -746,6 +745,7 @@ function App() {
                         }
 
                         if (state === 'waiting' && currentStatus !== 'WAITING_FOR_UPLOAD') return null; // hide future steps to keep it clean, or show them grayed out
+                        if (step.hidden) return null;
 
                         return (
                           <div key={step.id} className="flex flex-col gap-2">
