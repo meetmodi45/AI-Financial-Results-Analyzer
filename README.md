@@ -1,7 +1,7 @@
 # AI Financial Results Analyzer
 
 <p align="center">
-  <strong>Ingest financial PDFs → extract metrics → analyze → summarize → verdict.</strong><br>
+  <strong>Ingest financial PDFs → extract metrics → analyze → summarize.</strong><br>
   Plus earnings-call RAG chat and a global financial assistant.
 </p>
 
@@ -30,7 +30,6 @@
 - [Frontend](#frontend)
 - [Configuration](#configuration)
 - [Getting started](#getting-started)
-- [ML model training](#ml-model-training)
 - [Deployment](#deployment)
 - [Limitations & known gaps](#limitations--known-gaps)
 - [Troubleshooting](#troubleshooting)
@@ -40,7 +39,7 @@
 
 ## Overview
 
-**AI Financial Results Analyzer** is a full-stack application aimed at retail investors and analysts working with **Indian corporate financial filings** (quarterly/annual results, etc.). You upload a PDF; the system classifies it, extracts structured numbers with an LLM, computes growth and balance-sheet metrics in **deterministic Python** (so displayed figures are not LLM-hallucinated), generates plain-language summaries, and outputs a simple **GOOD / BAD / NEUTRAL** verdict from a trained classifier.
+**AI Financial Results Analyzer** is a full-stack application aimed at retail investors and analysts working with **Indian corporate financial filings** (quarterly/annual results, etc.). You upload a PDF; the system classifies it, extracts structured numbers with an LLM, computes growth and balance-sheet metrics in **deterministic Python** (so displayed figures are not LLM-hallucinated), and generates plain-language summaries.
 
 A second flow lets you upload **earnings-call transcripts** and ask questions via **retrieval-augmented generation** (Pinecone + Groq). A third feature is a **floating assistant** for general finance Q&A.
 
@@ -73,7 +72,7 @@ A second flow lets you upload **earnings-call transcripts** and ask questions vi
 </p>
 
 <p align="center">
-  <img src="./docs/results-5.png" alt="LLM NLP Summary" width="800"/>
+  <img src="./docs/results-5.png" alt="AI Summary" width="800"/>
 </p>
 
 <p align="center">
@@ -134,7 +133,7 @@ A second flow lets you upload **earnings-call transcripts** and ask questions vi
 
 | Module | Description |
 |--------|-------------|
-| **Financial results** | Upload a text-native PDF → 10-agent pipeline → dashboard with charts, P&L trends, balance sheet, cash flow, NLP bullets, verdict badge |
+| **Financial results** | Upload a text-native PDF → 10-agent pipeline → dashboard with charts, P&L trends, balance sheet, cash flow, AI bullets |
 | **Earnings call** | Upload PDF/`.txt` → embed into Pinecone → chat grounded in transcript chunks |
 | **Global assistant** | Ask financial concepts anytime from the floating chat (no document required) |
 
@@ -149,12 +148,12 @@ The pipeline is orchestrated in `backend/app/core/pipeline.py`. Each stage updat
 | 1 | Ingestion | `api/routes.py` | Validate PDF, save file, insert DB row, dispatch pipeline |
 | 2 | PDF Text Extraction | `agent_2_pdf_type.py` | Count text vs empty pages. **Rejects scanned/hybrid** |
 | 3 | OCR Text or Hybrid Check | `agent_3_ocr.py` | PyMuPDF per-page text → `extracted_text` JSON |
-| 4 | Page Identification (Regex Scoring) | `agent_4_classifier.py` | TF-IDF + LogReg or keyword fallback → `document_category` |
+| 4 | Page Identification (Regex Scoring) | `agent_4_classifier.py` | Keyword fallback → `document_category` |
 | 5 | Structured JSON Generation (LLM) | `agent_5_table_extraction.py` | Page scoring for P&L / BS / CF → Gemini structured extract |
 | 6 | Normalization and Error Handling | `agent_6_normalization.py` | Flags normalized; **currency scaling is in Agent 7** |
 | 7 | Financial Metrics Calculation | `agent_7_analysis.py` | Scale to **₹ crores**, QoQ/YoY, margins, BS, FCF |
 | 8 | AI Summary Generation | `agent_8_llm_summary.py` | Gemini bullets from calculated metrics only → `nlp_summary` |
-| 9 | Frontend Visualization | `agent_10_visualization.py` | ML verdict & Recharts-ready `charts_data` |
+| 9 | Frontend Visualization | `agent_10_visualization.py` | Recharts-ready `charts_data` |
 
 ### Agent 5 — Page selection (non-LLM)
 
@@ -174,14 +173,6 @@ Examples of fields written to `analysis_results` (all optional depending on extr
 | Cash flow | `operating_cash_flow_cr`, `capex_cr`, `free_cash_flow_cr`, … |
 
 Currency scaling uses `reported_currency_unit` from the LLM (e.g. Lakhs → ×0.01 to crores), with a text fallback if the unit is missing.
-
-### Verdict model
-
-`GOOD` / `BAD` / `NEUTRAL` from `verdict_classifier.joblib` using `qoq_growth`, `yoy_growth`, `net_margin`, and a composite `earnings_strength` score. Response shape:
-
-```json
-{ "verdict": "GOOD", "confidence": 0.87 }
-```
 
 ---
 
@@ -208,7 +199,6 @@ Currency scaling uses `reported_currency_unit` from the LLM (e.g. Lakhs → ×0.
 | **LLM** | Groq `llama-3.3-70b-versatile` | Structured extraction, summaries, chat |
 | **Orchestration** | LangChain | Prompts, structured output, Pinecone integration |
 | **Vectors** | Pinecone + HuggingFace embeddings | Concall RAG |
-| **ML** | scikit-learn, joblib | Document type + verdict classifiers |
 | **Infra (local)** | Docker Compose | PostgreSQL 15 (+ Redis 7 unused by app) |
 
 ---
@@ -239,10 +229,6 @@ AI-Financial-Results-Analyzer/
 │   │   │   └── financial.py    # FinancialRawSchema (LLM output)
 │   │   ├── services/
 │   │   │   └── concall_processor.py
-│   │   └── ml_models/          # *.joblib (gitignored — train locally)
-│   └── training/
-│       ├── train_doc_classifier.py
-│       └── train_verdict_model.py
 │
 ├── frontend/
 │   ├── package.json
@@ -273,7 +259,6 @@ AI-Financial-Results-Analyzer/
 | `financial_data` | JSON | Structured extraction + scaled numbers |
 | `analysis_results` | JSON | Computed metrics (Agent 7) |
 | `nlp_summary` | JSON | Executive summary, highlights, risks, etc. |
-| `verdict` | JSON | `{ verdict, confidence }` |
 | `error_message` | string | Set when `FAILED` |
 
 ### `concall_documents`
@@ -362,7 +347,6 @@ Response (when complete):
     "highlights": ["..."],
     "risks": ["..."]
   },
-  "verdict": { "verdict": "GOOD", "confidence": 0.82 },
   "financial_data": { ... },
   "error_message": null
 }
@@ -421,7 +405,6 @@ curl -X POST "http://localhost:8000/api/v1/assistant/ask" \
 | **Polling** | Status every **2 seconds** until `COMPLETED` or `FAILED` |
 | **Progress UI** | Animated loader during `TABLE_EXTRACTION` and concall `PENDING` |
 | **Charts** | Recharts line/bar charts from `metadata.charts_data` |
-| **Verdict** | Color-coded GOOD / BAD / NEUTRAL badge |
 | **Assistant** | Fixed bottom-right widget (`GlobalAssistant.jsx`) |
 
 **API base URL** (same host as browser, port 8000):
@@ -499,10 +482,6 @@ python -m venv .venv
 
 pip install -r requirements.txt
 
-# Train ML models (required for Agents 4 & 9)
-python training/train_doc_classifier.py
-python training/train_verdict_model.py
-
 # Run API (must be run from backend/)
 uvicorn app.main:app --reload
 ```
@@ -527,29 +506,6 @@ Open **http://localhost:5173** and ensure the API is running on **http://localho
 
 ---
 
-## ML model training
-
-Models are stored in `backend/app/ml_models/` and are **gitignored**. Fresh clones must train before the PDF pipeline completes.
-
-| Script | Output | Model |
-|--------|--------|--------|
-| `training/train_doc_classifier.py` | `doc_classifier.joblib` | TF-IDF + LogisticRegression (synthetic labels) |
-| `training/train_verdict_model.py` | `verdict_classifier.joblib` | RandomForest on growth/margin features |
-
-```bash
-cd backend
-python training/train_doc_classifier.py
-python training/train_verdict_model.py
-```
-
-Restart Uvicorn after retraining. For production, replace synthetic training data with real labeled filings.
-
-**Document classifier labels (training):** Quarterly Results, Annual Results, Dividend Notice, Board Meeting Outcome, Investor Presentation, Other.
-
-**Verdict labels:** GOOD, BAD, NEUTRAL.
-
----
-
 ## Deployment
 
 Suggested production layout:
@@ -560,12 +516,10 @@ Suggested production layout:
 | API | Container or PaaS web service: `uvicorn app.main:app --host 0.0.0.0 --port $PORT` from `backend/` |
 | Frontend | Static host (Vercel, Netlify, Cloudflare Pages): `npm run build` → serve `dist/` |
 | Secrets | `GROQ_API_KEY`, `PINECONE_*`, Postgres credentials |
-| ML artifacts | Run training on deploy or commit models to secure storage (not public git) |
 
 **Checklist**
 
 - [ ] Set all environment variables on the API service  
-- [ ] Ship or train `ml_models/*.joblib` on the server  
 - [ ] Create Pinecone index before enabling concall  
 - [ ] Update frontend `API_BASE` to production API URL  
 - [ ] Add authentication / rate limiting before public exposure  
@@ -582,7 +536,6 @@ Suggested production layout:
 | **Auth** | None; CORS allows all origins |
 | **Queue** | `BackgroundTasks` in-process — not Celery/Redis |
 | **Migrations** | `create_all` only — no Alembic migrations in repo |
-| **ML data** | Classifiers trained on **synthetic** samples |
 | **Concall metadata** | Frontend form fields exist; upload may send defaults — verify `App.jsx` if you rely on company/quarter labels |
 | **Tests / CI** | No automated test suite in repository |
 
@@ -592,7 +545,6 @@ Suggested production layout:
 
 | Problem | Likely cause | Fix |
 |---------|--------------|-----|
-| Pipeline fails at Agent 4 or 9 | Missing `.joblib` files | Run training scripts in `backend/training/` |
 | `GROQ_API_KEY not configured` | Missing env var | Add to root `.env`, restart API |
 | Concall upload fails | Pinecone key/index | Create index; set `PINECONE_*` vars |
 | `Scanned copy detected` | Image-only PDF | Use a text-based filing PDF |
