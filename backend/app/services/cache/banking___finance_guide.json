@@ -1,0 +1,102 @@
+{
+  "core_metrics": [
+    "Net Interest Margin",
+    "Gross NPA ratio",
+    "Net Interest Income",
+    "CASA ratio",
+    "Cost to Income ratio",
+    "Provision Coverage Ratio",
+    "Return on Assets",
+    "Capital Adequacy Ratio",
+    "Credit Cost",
+    "Slippage ratio"
+  ],
+  "causality_phrases": [
+    "driven by",
+    "due to",
+    "led by",
+    "on account of",
+    "as a result of",
+    "primarily attributed to",
+    "backed by",
+    "partially offset by"
+  ],
+  "guidance_phrases": [
+    "expect to maintain",
+    "target for FY",
+    "outlook for",
+    "guidance on",
+    "aiming to achieve",
+    "anticipate growth",
+    "projected trajectory",
+    "aspire to deliver"
+  ],
+  "risk_phrases": [
+    "headwinds from",
+    "asset quality pressure",
+    "margin compression",
+    "deposit growth lag",
+    "regulatory tightening",
+    "unsecured lending stress",
+    "macro volatility",
+    "elevated provisions"
+  ],
+  "sector_specific_topics": [
+    "Retail Advances",
+    "Wholesale Banking",
+    "Credit Deposit Ratio",
+    "CASA Deposits",
+    "PSL Certificates",
+    "Treasury Income",
+    "Branch Expansion",
+    "Credit Cards Portfolio",
+    "Microfinance and SLI"
+  ],
+  "management_commitment_phrases": [
+    "we remain committed to",
+    "we are confident of",
+    "our strategy is to",
+    "we intend to",
+    "we will continue to",
+    "our priority remains",
+    "we are focused on"
+  ],
+  "positive_signal_words": [
+    "robust growth",
+    "improving asset quality",
+    "healthy traction",
+    "expanding margins",
+    "solid momentum",
+    "strong balance sheet",
+    "market share gains",
+    "outperformed"
+  ],
+  "negative_signal_words": [
+    "margin pressure",
+    "higher slippages",
+    "credit cost spike",
+    "deposit competition",
+    "unsecured stress",
+    "growth slowdown",
+    "yield compression"
+  ],
+  "numbers_context": [
+    "INR Crore",
+    "basis points",
+    "bps",
+    "YoY",
+    "QoQ",
+    "percentage",
+    "Lakh Crore",
+    "annualized"
+  ],
+  "irrelevant_content": [
+    "thank you for the question",
+    "welcome to the earnings call",
+    "operator please",
+    "handing over to",
+    "ladies and gentlemen",
+    "safe harbor statement",
+    "taking the next question"
+  ]
+}

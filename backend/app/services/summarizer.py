@@ -155,7 +155,7 @@ except OSError as e:
 
 class ConcallSummarizer:
     def __init__(self):
-        fallback_llm = ChatGroq(model=settings.GROQ_MODEL, temperature=0)
+        fallback_llm = ChatGroq(model=settings.GROQ_MODEL, temperature=0, api_key=settings.GROQ_API_KEY)
         api_key = settings.GEMINI_API_KEY or settings.GOOGLE_API_KEY
         if api_key:
             try:
@@ -203,7 +203,13 @@ class ConcallSummarizer:
             "FY": fy
         })
         
-        content = res.content.strip()
+        raw_content = res.content
+        if isinstance(raw_content, list):
+            content = " ".join([b.get("text", "") for b in raw_content if isinstance(b, dict) and "text" in b])
+        else:
+            content = str(raw_content)
+            
+        content = content.strip()
         if content.startswith("```json"):
             content = content[7:-3]
         if content.startswith("```"):
@@ -331,7 +337,13 @@ class ConcallSummarizer:
             "FILTERED_TRANSCRIPT": filtered_transcript
         })
         
-        content = res.content.strip()
+        raw_content = res.content
+        if isinstance(raw_content, list):
+            content = " ".join([b.get("text", "") for b in raw_content if isinstance(b, dict) and "text" in b])
+        else:
+            content = str(raw_content)
+            
+        content = content.strip()
         if content.startswith("```json"):
             content = content[7:-3]
         if content.startswith("```"):

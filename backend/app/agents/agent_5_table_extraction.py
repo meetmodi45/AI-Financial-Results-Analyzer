@@ -249,10 +249,10 @@ def process_tables(document_id: str):
 
             chain = prompt | llm
 
-            try:
+            def attempt_pass(llm_instance):
+                chain = prompt | llm_instance
                 res = chain.invoke({"schema_keys": schema_keys_json, "text": compiled_text})
-            
-                # Handle list content returned by Gemini
+                
                 raw_text = res.content
                 if isinstance(raw_text, list):
                     raw_text = "".join([part.get("text", "") for part in raw_text if isinstance(part, dict) and "text" in part])
@@ -262,17 +262,27 @@ def process_tables(document_id: str):
                 logger.info(f"[Agent5 DEBUG] Raw LLM Output (first 1000 chars): {raw_text[:1000]}")
                 
                 sanitized_text = sanitize_json_string(raw_text)
-                parsed_json = json.loads(sanitized_text)
-                
-                # Merge extracted values (ignore nulls to prevent overwriting values extracted in other passes)
-                for k, v in parsed_json.items():
-                    if v is not None and v != "":
-                        merged_data[k] = v
-            except Exception as e:
-                logger.error(f"[Agent5] Pass {pass_name} extraction failed: {e}")
-                if "429" in str(e) or "413" in str(e) or "RESOURCE_EXHAUSTED" in str(e) or "rate_limit" in str(e):
-                    raise ValueError(f"Groq API Limit Exhausted (Wait 1 minute before analyzing again). Details: {e}")
-                raise e
+                return json.loads(sanitized_text)
+
+            max_retries = 3
+            parsed_json = {}
+            import time
+            for attempt in range(max_retries):
+                try:
+                    parsed_json = attempt_pass(llm)
+                    break
+                except Exception as e:
+                    if attempt < max_retries - 1 and ("429" in str(e) or "RESOURCE_EXHAUSTED" in str(e) or "rate_limit" in str(e)):
+                        logger.warning(f"[Agent 5] API limit hit. Retrying in 60 seconds... (Attempt {attempt+1}/{max_retries})")
+                        time.sleep(60)
+                    else:
+                        logger.error(f"[Agent5] LLM parsing failed: {e}")
+                        raise e
+            
+            # Merge extracted values (ignore nulls to prevent overwriting values extracted in other passes)
+            for k, v in parsed_json.items():
+                if v is not None and v != "":
+                    merged_data[k] = v
 
         # Validate final merged JSON structure using Pydantic
         result = FinancialRawSchema.model_validate(merged_data)

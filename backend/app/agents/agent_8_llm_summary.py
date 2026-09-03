@@ -21,8 +21,15 @@ class LLMSummarySchema(BaseModel):
 
 def sanitize_summary_json(raw_json: str) -> str:
     """Sanitizes raw JSON produced by LLM to fix invalid escaping (like \\' inside strings)."""
+    cleaned = raw_json.strip()
+    
+    if "{" in cleaned and "}" in cleaned:
+        start_idx = cleaned.find("{")
+        end_idx = cleaned.rfind("}")
+        cleaned = cleaned[start_idx:end_idx+1]
+
     # Remove invalid single-quote escapes \' -> '
-    cleaned = raw_json.replace(r"\'", "'")
+    cleaned = cleaned.replace(r"\'", "'")
     # Clean any illegal escape backslashes not followed by valid JSON escape chars
     cleaned = re.sub(r'\\(?![/u"\\bfnrt])', '', cleaned)
     return cleaned
@@ -48,7 +55,8 @@ def process_llm_summary(document_id: str):
             f"EBITDA Margin: {res.get('ebitda_margin')}%\n"
         )
         
-        logger.info("[Agent 8] Invoking Groq JSON mode for LLM Summarization...")
+        logger.info("[Agent 8] Invoking Gemini JSON mode for LLM Summarization...")
+        
         llm = ChatGoogleGenerativeAI(
             model=settings.GEMINI_MODEL,
             temperature=0.0,
@@ -61,7 +69,7 @@ def process_llm_summary(document_id: str):
             "You are a Senior Institutional Financial Analyst.\n"
             "Synthesize a clean, highly organized, and non-repetitive analyst summary based on the provided metrics.\n"
             "STRICT RULES:\n"
-            "1. Output ONLY a single JSON object with key 'executive_summary' containing a list of 4-6 distinct, high-value bullet point strings.\n"
+            "1. Output ONLY a single JSON object with key \"executive_summary\" containing a list of 4-6 distinct, high-value bullet point strings.\n"
             "2. DO NOT repeat the same metric or stat across multiple bullet points. Mention each metric (e.g., revenue growth, EPS, net margin) AT MOST ONCE.\n"
             "3. Structure the points logically in sequence:\n"
             "   - Point 1: Revenue & Top-line Performance (QoQ / YoY)\n"
@@ -77,27 +85,37 @@ def process_llm_summary(document_id: str):
             ("human", "Analyze this financial data and output a single valid JSON object:\n\n{text}")
         ])
         
-        chain = prompt | llm
+        def attempt_extraction():
+            chain = prompt | llm
+            max_retries = 3
+            parsed_json = {}
+            import time
+            for attempt in range(max_retries):
+                try:
+                    res = chain.invoke({"text": context_payload})
+                    raw_text = res.content
+                    if isinstance(raw_text, list):
+                        raw_text = "".join([part.get("text", "") for part in raw_text if isinstance(part, dict) and "text" in part])
+                    elif not isinstance(raw_text, str):
+                        raw_text = str(raw_text)
+                        
+                    sanitized_text = sanitize_summary_json(raw_text)
+                    parsed_json = json.loads(sanitized_text)
+                    break
+                except Exception as e:
+                    if attempt < max_retries - 1 and ("429" in str(e) or "RESOURCE_EXHAUSTED" in str(e) or "rate_limit" in str(e)):
+                        logger.warning(f"[Agent 8] API limit hit. Retrying in 60 seconds... (Attempt {attempt+1}/{max_retries})")
+                        time.sleep(60)
+                    else:
+                        logger.error(f"[Agent 8] LLM summarization failed: {e}")
+                        raise e
+            return LLMSummarySchema.model_validate(parsed_json)
 
-        try:
-            raw_response = chain.invoke({"text": context_payload})
-            raw_text = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
-            
-            cleaned_text = sanitize_summary_json(raw_text)
-            parsed_json = json.loads(cleaned_text)
-            result = LLMSummarySchema.model_validate(parsed_json)
-        except Exception as e:
-            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-                logger.error("[Agent 8] Groq API Rate Limit Hit (429). Failing gracefully.")
-                raise ValueError("Groq API Limit Exhausted. Try again after some time")
-            else:
-                logger.error(f"[Agent 8] Parsing LLM Summary failed: {e}")
-                raise e
-        
+        result = attempt_extraction()
         doc_record.nlp_summary = result.model_dump()
         db.commit()
-        logger.info(f"[Agent 8] NLP summary generated for doc_id={document_id}")
-        logger.info(f"Agent 8 (NLP Summary) completed for {document_id}")
+        logger.info(f"[Agent 8] LLM summary generated for doc_id={document_id}")
+        logger.info(f"Agent 8 (LLM Summary) completed for {document_id}")
     except Exception as e:
         logger.error(f"[Agent 8] Error: {e}")
         doc_record.processing_status = ProcessingStatus.FAILED

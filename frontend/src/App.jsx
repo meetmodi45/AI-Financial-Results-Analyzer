@@ -1511,7 +1511,7 @@ function App() {
 
                 {/* Right Column: Summaries & Insights Dashboard */}
                 <div className="lg:col-span-7 space-y-6">
-                  {concallStatusData.summary_data && (
+                  {concallStatusData.summary_data ? (
                     <div className="brutalist-panel border-4 border-brutalist-dark shadow-[4px_4px_0px_0px_#1A1A1A] bg-[#FDFBF7] flex flex-col overflow-hidden">
                       {/* Tabs Bar */}
                       <div className="flex border-b-4 border-brutalist-dark font-mono text-xs sm:text-sm uppercase tracking-wider font-black bg-[#1A1A1A]">
@@ -1570,12 +1570,16 @@ function App() {
                             <div className="border-2 border-brutalist-dark p-4 bg-white shadow-[3px_3px_0px_0px_#1A1A1A]">
                               <h3 className="font-black text-sm text-brutalist-dark bg-[#F2EBE3] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Forward Guidance & Commitments</h3>
                               <ul className="space-y-3">
-                                {(concallStatusData.summary_data.guidance || []).map((item, idx) => (
-                                  <li key={idx} className="flex items-start gap-3">
-                                    <TrendingUp className="text-brutalist-dark shrink-0 mt-0.5" size={18} strokeWidth={2.5} />
-                                    <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{formatSummaryText(item)}</span>
-                                  </li>
-                                ))}
+                                {(!concallStatusData.summary_data.guidance || concallStatusData.summary_data.guidance.length === 0) ? (
+                                  <li className="text-sm font-medium font-mono text-stone-500 italic">No specific forward guidance extracted.</li>
+                                ) : (
+                                  concallStatusData.summary_data.guidance.map((item, idx) => (
+                                    <li key={idx} className="flex items-start gap-3">
+                                      <TrendingUp className="text-brutalist-dark shrink-0 mt-0.5" size={18} strokeWidth={2.5} />
+                                      <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{formatSummaryText(item)}</span>
+                                    </li>
+                                  ))
+                                )}
                               </ul>
                             </div>
                           </div>
@@ -1587,12 +1591,16 @@ function App() {
                             <div className="border-2 border-brutalist-dark p-4 bg-white shadow-[3px_3px_0px_0px_#1A1A1A]">
                               <h3 className="font-black text-sm text-white bg-[#2E6F40] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Positive Signals</h3>
                               <ul className="space-y-3">
-                                {(concallStatusData.summary_data.positive || []).map((item, idx) => (
-                                  <li key={idx} className="flex items-start gap-3">
-                                    <CheckCircle className="text-[#2E6F40] shrink-0 mt-0.5" size={18} strokeWidth={2.5} />
-                                    <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{formatSummaryText(item)}</span>
-                                  </li>
-                                ))}
+                                {(!concallStatusData.summary_data.positive || concallStatusData.summary_data.positive.length === 0) ? (
+                                  <li className="text-sm font-medium font-mono text-stone-500 italic">No strong positive signals extracted.</li>
+                                ) : (
+                                  concallStatusData.summary_data.positive.map((item, idx) => (
+                                    <li key={idx} className="flex items-start gap-3">
+                                      <CheckCircle className="text-[#2E6F40] shrink-0 mt-0.5" size={18} strokeWidth={2.5} />
+                                      <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{formatSummaryText(item)}</span>
+                                    </li>
+                                  ))
+                                )}
                               </ul>
                             </div>
 
@@ -1600,12 +1608,16 @@ function App() {
                             <div className="border-2 border-brutalist-dark p-4 bg-white shadow-[3px_3px_0px_0px_#1A1A1A]">
                               <h3 className="font-black text-sm text-white bg-[#991B1B] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Negative Signals</h3>
                               <ul className="space-y-3">
-                                {(concallStatusData.summary_data.negative || []).map((item, idx) => (
-                                  <li key={idx} className="flex items-start gap-3">
-                                    <AlertTriangle className="text-[#991B1B] shrink-0 mt-0.5" size={18} strokeWidth={2.5} />
-                                    <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{formatSummaryText(item)}</span>
-                                  </li>
-                                ))}
+                                {(!concallStatusData.summary_data.negative || concallStatusData.summary_data.negative.length === 0) ? (
+                                  <li className="text-sm font-medium font-mono text-stone-500 italic">No significant negative signals extracted.</li>
+                                ) : (
+                                  concallStatusData.summary_data.negative.map((item, idx) => (
+                                    <li key={idx} className="flex items-start gap-3">
+                                      <AlertTriangle className="text-[#991B1B] shrink-0 mt-0.5" size={18} strokeWidth={2.5} />
+                                      <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{formatSummaryText(item)}</span>
+                                    </li>
+                                  ))
+                                )}
                               </ul>
                             </div>
                           </div>
@@ -1617,12 +1629,16 @@ function App() {
                             <div className="border-2 border-brutalist-dark p-4 bg-white shadow-[3px_3px_0px_0px_#1A1A1A]">
                               <h3 className="font-black text-sm text-white bg-[#D95A2B] inline-block px-3 py-1 mb-4 uppercase tracking-widest border-2 border-brutalist-dark">Key Risks to Watch</h3>
                               <ul className="space-y-3">
-                                {(concallStatusData.summary_data.key_risks_to_watch || []).map((item, idx) => (
-                                  <li key={idx} className="flex items-start gap-3">
-                                    <AlertTriangle className="text-[#D95A2B] shrink-0 mt-0.5" size={18} strokeWidth={2.5} />
-                                    <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{formatSummaryText(item)}</span>
-                                  </li>
-                                ))}
+                                {(!concallStatusData.summary_data.key_risks_to_watch || concallStatusData.summary_data.key_risks_to_watch.length === 0) ? (
+                                  <li className="text-sm font-medium font-mono text-stone-500 italic">No major key risks explicitly highlighted.</li>
+                                ) : (
+                                  concallStatusData.summary_data.key_risks_to_watch.map((item, idx) => (
+                                    <li key={idx} className="flex items-start gap-3">
+                                      <AlertTriangle className="text-[#D95A2B] shrink-0 mt-0.5" size={18} strokeWidth={2.5} />
+                                      <span className="text-sm font-medium font-mono text-brutalist-dark leading-relaxed">{formatSummaryText(item)}</span>
+                                    </li>
+                                  ))
+                                )}
                               </ul>
                             </div>
 
@@ -1658,6 +1674,15 @@ function App() {
                           </div>
                         )}
                       </div>
+                    </div>
+                  ) : (
+                    <div className="brutalist-panel border-4 border-brutalist-dark shadow-[4px_4px_0px_0px_#1A1A1A] bg-[#FDFBF7] p-8 flex flex-col items-center justify-center text-center h-[550px]">
+                      <AlertTriangle size={48} className="text-[#991B1B] mb-4" />
+                      <h3 className="text-xl font-black uppercase tracking-tight text-brutalist-dark mb-2">Insights Unavailable</h3>
+                      <p className="text-sm font-mono text-stone-600 max-w-md border-2 border-stone-200 p-4 bg-white mt-4">
+                        The AI summary could not be generated due to context length or processing constraints.<br/><br/>
+                        Don't worry &mdash; the transcript is fully loaded into the vector database. You can still use the <strong>Chat Interface</strong> on the left to extract any information manually.
+                      </p>
                     </div>
                   )}
                 </div>
