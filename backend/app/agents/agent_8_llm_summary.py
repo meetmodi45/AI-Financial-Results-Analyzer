@@ -4,7 +4,7 @@ import json
 from app.core.db import SessionLocal
 from app.models.document import Document, ProcessingStatus
 from app.core.config import settings
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
@@ -55,14 +55,12 @@ def process_llm_summary(document_id: str):
             f"EBITDA Margin: {res.get('ebitda_margin')}%\n"
         )
         
-        logger.info("[Agent 8] Invoking Gemini JSON mode for LLM Summarization...")
+        logger.info("[Agent 8] Invoking Groq for LLM Summarization...")
         
-        llm = ChatGoogleGenerativeAI(
-            model=settings.GEMINI_MODEL,
+        llm = ChatGroq(
+            model=settings.GROQ_MODEL,
             temperature=0.0,
-            max_output_tokens=1000,
-            google_api_key=settings.GEMINI_API_KEY,
-            model_kwargs={"response_mime_type": "application/json"}
+            api_key=settings.GROQ_API_KEY
         )
         
         system_prompt = (
@@ -87,29 +85,20 @@ def process_llm_summary(document_id: str):
         
         def attempt_extraction():
             chain = prompt | llm
-            max_retries = 3
-            parsed_json = {}
-            import time
-            for attempt in range(max_retries):
-                try:
-                    res = chain.invoke({"text": context_payload})
-                    raw_text = res.content
-                    if isinstance(raw_text, list):
-                        raw_text = "".join([part.get("text", "") for part in raw_text if isinstance(part, dict) and "text" in part])
-                    elif not isinstance(raw_text, str):
-                        raw_text = str(raw_text)
-                        
-                    sanitized_text = sanitize_summary_json(raw_text)
-                    parsed_json = json.loads(sanitized_text)
-                    break
-                except Exception as e:
-                    if attempt < max_retries - 1 and ("429" in str(e) or "RESOURCE_EXHAUSTED" in str(e) or "rate_limit" in str(e)):
-                        logger.warning(f"[Agent 8] API limit hit. Retrying in 60 seconds... (Attempt {attempt+1}/{max_retries})")
-                        time.sleep(60)
-                    else:
-                        logger.error(f"[Agent 8] LLM summarization failed: {e}")
-                        raise e
-            return LLMSummarySchema.model_validate(parsed_json)
+            try:
+                res = chain.invoke({"text": context_payload})
+                raw_text = res.content
+                if isinstance(raw_text, list):
+                    raw_text = "".join([part.get("text", "") for part in raw_text if isinstance(part, dict) and "text" in part])
+                elif not isinstance(raw_text, str):
+                    raw_text = str(raw_text)
+                    
+                sanitized_text = sanitize_summary_json(raw_text)
+                parsed_json = json.loads(sanitized_text)
+                return LLMSummarySchema.model_validate(parsed_json)
+            except Exception as e:
+                logger.error(f"[Agent 8] LLM summarization failed: {e}")
+                raise e
 
         result = attempt_extraction()
         doc_record.nlp_summary = result.model_dump()
