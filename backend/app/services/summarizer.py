@@ -153,23 +153,36 @@ try:
 except OSError as e:
     logger.warning(f"Could not create cache directory {CACHE_DIR}: {e}. Sector guides will not be cached to disk.")
 
+def sanitize_summary_json(raw_json: str) -> str:
+    cleaned = raw_json.strip()
+    if "{" in cleaned and "}" in cleaned:
+        start_idx = cleaned.find("{")
+        end_idx = cleaned.rfind("}")
+        cleaned = cleaned[start_idx:end_idx+1]
+    cleaned = cleaned.replace(r"\'", "'")
+    import re
+    cleaned = re.sub(r'\\(?![/u"\\bfnrt])', '', cleaned)
+    return cleaned
+
 class ConcallSummarizer:
     def __init__(self):
-        fallback_llm = ChatGroq(model=settings.GROQ_MODEL, temperature=0, api_key=settings.GROQ_API_KEY)
-        api_key = settings.GEMINI_API_KEY or settings.GOOGLE_API_KEY
-        if api_key:
-            try:
-                primary_llm = ChatGoogleGenerativeAI(
-                    model=settings.GEMINI_MODEL,
-                    temperature=0,
-                    api_key=api_key
-                )
-                self.llm = primary_llm.with_fallbacks([fallback_llm])
-            except Exception as e:
-                logger.warning(f"Failed to initialize ChatGoogleGenerativeAI, falling back to Groq: {e}")
-                self.llm = fallback_llm
-        else:
-            self.llm = fallback_llm
+        fallback_llm = ChatGoogleGenerativeAI(
+            model=settings.GEMINI_MODEL,
+            temperature=0,
+            api_key=settings.GEMINI_API_KEY or settings.GOOGLE_API_KEY
+        )
+        try:
+            self.primary_llm = ChatGroq(
+                model=settings.GROQ_MODEL, 
+                temperature=0, 
+                api_key=settings.GROQ_API_KEY
+            )
+            self.fallback_llm = fallback_llm
+        except Exception as e:
+            logger.warning(f"Failed to initialize ChatGroq, falling back to Gemini: {e}")
+            self.primary_llm = fallback_llm
+            self.fallback_llm = fallback_llm
+            
         self._vectorizer = None  # Lazily initialized to avoid import-time sklearn crash
 
     def _get_cache_path(self, sector: str) -> str:
@@ -195,34 +208,49 @@ class ConcallSummarizer:
             ("human", STAGE_1_USER)
         ])
         
-        chain = prompt | self.llm
-        res = chain.invoke({
-            "SECTOR": sector,
-            "COMPANY_NAME": company_name,
-            "QUARTER": quarter,
-            "FY": fy
-        })
-        
-        raw_content = res.content
-        if isinstance(raw_content, list):
-            content = " ".join([b.get("text", "") for b in raw_content if isinstance(b, dict) and "text" in b])
-        else:
-            content = str(raw_content)
-            
-        content = content.strip()
-        if content.startswith("```json"):
-            content = content[7:-3]
-        if content.startswith("```"):
-            content = content[3:-3]
-            
-        try:
-            guide = json.loads(content)
-            with open(cache_path, 'w', encoding='utf-8') as f:
-                json.dump(guide, f, indent=2)
-            return guide
-        except Exception as e:
-            logger.error(f"Failed to parse Stage 1 JSON: {e}. Falling back to default domain guide.")
-            return DEFAULT_DOMAIN_GUIDE
+        def attempt_extraction(llm_instance):
+            chain = prompt | llm_instance
+            res = chain.invoke({
+                "SECTOR": sector,
+                "COMPANY_NAME": company_name,
+                "QUARTER": quarter,
+                "FY": fy
+            })
+            raw_content = res.content
+            if isinstance(raw_content, list):
+                content = "".join([b.get("text", "") for b in raw_content if isinstance(b, dict) and "text" in b])
+            else:
+                content = str(raw_content)
+                
+            sanitized = sanitize_summary_json(content)
+            return json.loads(sanitized)
+
+        import time
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"[Summarizer Stage 1] Attempting with Groq...")
+                guide = attempt_extraction(self.primary_llm)
+                with open(cache_path, 'w', encoding='utf-8') as f:
+                    json.dump(guide, f, indent=2)
+                return guide
+            except Exception as e:
+                logger.warning(f"[Summarizer Stage 1] Groq failed: {e}. Falling back to Gemini...")
+                try:
+                    guide = attempt_extraction(self.fallback_llm)
+                    with open(cache_path, 'w', encoding='utf-8') as f:
+                        json.dump(guide, f, indent=2)
+                    return guide
+                except Exception as fallback_e:
+                    if attempt < max_retries - 1 and ("429" in str(fallback_e) or "RESOURCE_EXHAUSTED" in str(fallback_e) or "rate_limit" in str(fallback_e)):
+                        logger.warning(f"[Summarizer Stage 1] Gemini API limit hit. Retrying in 60 seconds... (Attempt {attempt+1}/{max_retries})")
+                        time.sleep(60)
+                    else:
+                        logger.error(f"[Summarizer Stage 1] LLM parsing failed: {fallback_e}")
+                        break
+
+        logger.error(f"Failed to parse Stage 1 JSON after {max_retries} retries. Falling back to default domain guide.")
+        return DEFAULT_DOMAIN_GUIDE
 
     def _clean_text(self, text: str) -> List[str]:
         # Strip legal headers, moderator lines, compress speaker names, remove page markers
@@ -328,37 +356,53 @@ class ConcallSummarizer:
             ("human", STAGE_3_USER)
         ])
         
-        chain = prompt | self.llm
-        res = chain.invoke({
-            "COMPANY_NAME": company_name,
-            "SECTOR": sector,
-            "QUARTER": quarter,
-            "FY": fy,
-            "FILTERED_TRANSCRIPT": filtered_transcript
-        })
-        
-        raw_content = res.content
-        if isinstance(raw_content, list):
-            content = " ".join([b.get("text", "") for b in raw_content if isinstance(b, dict) and "text" in b])
-        else:
-            content = str(raw_content)
-            
-        content = content.strip()
-        if content.startswith("```json"):
-            content = content[7:-3]
-        if content.startswith("```"):
-            content = content[3:-3]
-            
-        try:
-            return json.loads(content)
-        except Exception as e:
-            logger.error(f"Failed to parse Stage 3 JSON: {e}\nContent: {content}")
-            return {
-                "key_takeaways": [],
-                "positive": [],
-                "negative": [],
-                "guidance": [],
-                "key_risks_to_watch": [],
-                "capital_allocation": [],
-                "strategic_initiatives": []
-            }
+        def attempt_extraction(llm_instance):
+            chain = prompt | llm_instance
+            res = chain.invoke({
+                "COMPANY_NAME": company_name,
+                "SECTOR": sector,
+                "QUARTER": quarter,
+                "FY": fy,
+                "FILTERED_TRANSCRIPT": filtered_transcript
+            })
+            raw_content = res.content
+            if isinstance(raw_content, list):
+                content = "".join([b.get("text", "") for b in raw_content if isinstance(b, dict) and "text" in b])
+            else:
+                content = str(raw_content)
+                
+            sanitized = sanitize_summary_json(content)
+            try:
+                return json.loads(sanitized)
+            except Exception as parse_e:
+                logger.error(f"[Summarizer Stage 3] JSON Parse Error: {parse_e}. Raw content from LLM: {repr(content)}")
+                raise parse_e
+
+        import time
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"[Summarizer Stage 3] Attempting with Groq...")
+                return attempt_extraction(self.primary_llm)
+            except Exception as e:
+                logger.warning(f"[Summarizer Stage 3] Groq failed: {e}. Falling back to Gemini...")
+                try:
+                    return attempt_extraction(self.fallback_llm)
+                except Exception as fallback_e:
+                    if attempt < max_retries - 1 and ("429" in str(fallback_e) or "RESOURCE_EXHAUSTED" in str(fallback_e) or "rate_limit" in str(fallback_e)):
+                        logger.warning(f"[Summarizer Stage 3] Gemini API limit hit. Retrying in 60 seconds... (Attempt {attempt+1}/{max_retries})")
+                        time.sleep(60)
+                    else:
+                        logger.error(f"[Summarizer Stage 3] LLM parsing failed: {fallback_e}")
+                        break
+
+        logger.error(f"Failed to parse Stage 3 JSON after {max_retries} retries. Returning empty arrays.")
+        return {
+            "key_takeaways": [],
+            "positive": [],
+            "negative": [],
+            "guidance": [],
+            "key_risks_to_watch": [],
+            "capital_allocation": [],
+            "strategic_initiatives": []
+        }

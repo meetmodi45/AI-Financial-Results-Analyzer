@@ -186,8 +186,15 @@ def process_tables(document_id: str):
         passes = [("ALL", target_set)]
 
         # Invoke LLM Engine
-        logger.info("[Agent5] Invoking Gemini for single-pass table extraction...")
-        llm = ChatGoogleGenerativeAI(
+        logger.info("[Agent5] Setting up Groq as primary and Gemini as fallback...")
+        from langchain_groq import ChatGroq
+        primary_llm = ChatGroq(
+            model=settings.GROQ_MODEL,
+            temperature=0.0,
+            api_key=settings.GROQ_API_KEY
+        )
+        
+        fallback_llm = ChatGoogleGenerativeAI(
             model=settings.GEMINI_MODEL,
             temperature=0.0,
             max_output_tokens=4000,
@@ -247,8 +254,6 @@ def process_tables(document_id: str):
                 ("human", "Extract the financial profile into JSON. Do NOT wrap it in markdown:\n\n{text}")
             ])
 
-            chain = prompt | llm
-
             def attempt_pass(llm_instance):
                 chain = prompt | llm_instance
                 res = chain.invoke({"schema_keys": schema_keys_json, "text": compiled_text})
@@ -264,20 +269,26 @@ def process_tables(document_id: str):
                 sanitized_text = sanitize_json_string(raw_text)
                 return json.loads(sanitized_text)
 
-            max_retries = 3
             parsed_json = {}
             import time
-            for attempt in range(max_retries):
-                try:
-                    parsed_json = attempt_pass(llm)
-                    break
-                except Exception as e:
-                    if attempt < max_retries - 1 and ("429" in str(e) or "RESOURCE_EXHAUSTED" in str(e) or "rate_limit" in str(e)):
-                        logger.warning(f"[Agent 5] API limit hit. Retrying in 60 seconds... (Attempt {attempt+1}/{max_retries})")
-                        time.sleep(60)
-                    else:
-                        logger.error(f"[Agent5] LLM parsing failed: {e}")
-                        raise e
+            
+            try:
+                logger.info(f"[Agent5] Attempting pass {pass_name} with Groq...")
+                parsed_json = attempt_pass(primary_llm)
+            except Exception as e:
+                logger.warning(f"[Agent5] Groq failed: {e}. Falling back to Gemini...")
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        parsed_json = attempt_pass(fallback_llm)
+                        break
+                    except Exception as fallback_e:
+                        if attempt < max_retries - 1 and ("429" in str(fallback_e) or "RESOURCE_EXHAUSTED" in str(fallback_e) or "rate_limit" in str(fallback_e)):
+                            logger.warning(f"[Agent 5] Gemini API limit hit. Retrying in 60 seconds... (Attempt {attempt+1}/{max_retries})")
+                            time.sleep(60)
+                        else:
+                            logger.error(f"[Agent5] Gemini parsing failed: {fallback_e}")
+                            raise fallback_e
             
             # Merge extracted values (ignore nulls to prevent overwriting values extracted in other passes)
             for k, v in parsed_json.items():
